@@ -1,0 +1,47 @@
+{
+    "version": 6,
+    "cmakeMinimumRequired": {
+        "major": 3,
+        "minor": 25,
+        "patch": 0
+    },
+    "configurePresets": [
+        {
+            "name": "android",
+            "displayName": "Android arm64-v8a (Release)",
+            "description": "-",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build",
+            "cacheVariables": {
+                "CMAKE_TOOLCHAIN_FILE": "C:/Users/aqua/Desktop/file/_lib/android-ndk-r30/build/cmake/android.toolchain.cmake",
+                "CMAKE_ANDROID_NDK": "C:/Users/aqua/Desktop/file/_lib/android-ndk-r30",
+                "CMAKE_MAKE_PROGRAM": "C:/Users/aqua/Desktop/file/_lib/ninja-win/ninja.exe",
+                "CMAKE_ANDROID_STL_TYPE": "c++_static",
+                "ANDROID_ABI": "arm64-v8a",
+                "ANDROID_PLATFORM": "24",
+                "CMAKE_BUILD_TYPE": "Release"
+            }
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "android",
+            "configurePreset": "android"
+        }
+    ],
+    "workflowPresets": [
+        {
+            "name": "android",
+            "steps": [
+                {
+                    "type": "configure",
+                    "name": "android"
+                },
+                {
+                    "type": "build",
+                    "name": "android"
+                }
+            ]
+        }
+    ]
+}
