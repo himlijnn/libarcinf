@@ -6,6 +6,16 @@
 #include <cstdio>
 #include <cstring>
 
+__attribute__((naked, used)) static void asmAbsJump()
+{
+    __asm__ __volatile__("ldr x16, #8\nbr x16\n.quad 0\n");
+}
+
+__attribute__((naked, used)) static void asmBranch()
+{
+    __asm__ __volatile__("b .\n");
+}
+
 inline long trampPageSize()
 {
     const long ps = sysconf(_SC_PAGESIZE);
@@ -49,24 +59,22 @@ struct Trampoline
 inline uintptr_t makeTrampCave(const void *orig16, uintptr_t back_addr)
 {
     const long ps = trampPageSize();
-    void *p = mmap(nullptr, ps, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-    if (p == MAP_FAILED)
+    void *mem = mmap(nullptr, ps, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    if (mem == MAP_FAILED)
         return 0;
 
-    uint8_t *c = static_cast<uint8_t *>(p);
-    memcpy(c, orig16, 16);
-    uint32_t *w = reinterpret_cast<uint32_t *>(c + 16);
-    w[0] = 0x58000050; // LDR X16, #8
-    w[1] = 0xD61F0200; // BR  X16
-    memcpy(c + 24, &back_addr, 8);
+    uint8_t *cave = static_cast<uint8_t *>(mem);
+    memcpy(cave, orig16, 16);
+    memcpy(cave + 16, reinterpret_cast<const void *>(&asmAbsJump), 16);
+    memcpy(cave + 24, &back_addr, 8);
 
-    __builtin___clear_cache(reinterpret_cast<char *>(c), reinterpret_cast<char *>(c + 32));
-    if (mprotect(p, ps, PROT_READ | PROT_EXEC) != 0)
+    __builtin___clear_cache(reinterpret_cast<char *>(cave), reinterpret_cast<char *>(cave + 32));
+    if (mprotect(mem, ps, PROT_READ | PROT_EXEC) != 0)
     {
-        munmap(p, ps);
+        munmap(mem, ps);
         return 0;
     }
-    return reinterpret_cast<uintptr_t>(p);
+    return reinterpret_cast<uintptr_t>(mem);
 }
 
 inline bool patchTrampEntry(uintptr_t target, void *hook_fn)
@@ -74,24 +82,34 @@ inline bool patchTrampEntry(uintptr_t target, void *hook_fn)
     const long ps = trampPageSize();
     const uintptr_t page = target & ~(static_cast<uintptr_t>(ps) - 1);
 
-    uint32_t jump[4] = {0x58000050, 0xD61F0200, 0, 0};
+    uint8_t jump[16];
+    memcpy(jump, reinterpret_cast<const void *>(&asmAbsJump), sizeof(jump));
     const uintptr_t fn = reinterpret_cast<uintptr_t>(hook_fn);
-    memcpy(&jump[2], &fn, 8);
+    memcpy(jump + 8, &fn, 8);
 
     if (mprotect(reinterpret_cast<void *>(page), ps, PROT_READ | PROT_WRITE | PROT_EXEC) != 0)
         return false;
 
-    memcpy(reinterpret_cast<void *>(target), jump, 16);
+    memcpy(reinterpret_cast<void *>(target), jump, sizeof(jump));
     __builtin___clear_cache(reinterpret_cast<char *>(page), reinterpret_cast<char *>(page + ps));
     mprotect(reinterpret_cast<void *>(page), ps, PROT_READ | PROT_EXEC);
     return true;
 }
 
+inline uint32_t makeBranchWord(uintptr_t from, uintptr_t to)
+{
+    const int64_t disp = static_cast<int64_t>(to) - static_cast<int64_t>(from);
+    if (disp < -0x8000000LL || disp > 0x7FFFFFCLL)
+        return 0;
+    uint32_t opcode;
+    memcpy(&opcode, reinterpret_cast<const void *>(&asmBranch), sizeof(opcode));
+    const uint32_t imm26 = (1u << 26) - 1;
+    return opcode | (static_cast<uint32_t>(disp >> 2) & imm26);
+}
+
 inline Trampoline installTrampoline(uintptr_t target, void *hook_fn)
 {
     Trampoline t;
-    if (!target || !hook_fn)
-        return t;
 
     uint8_t orig[16];
     memcpy(orig, reinterpret_cast<const void *>(target), 16);
@@ -112,8 +130,6 @@ inline Trampoline installTrampoline(uintptr_t target, void *hook_fn)
 inline Trampoline replaceFunction(uintptr_t target, void *hook_fn)
 {
     Trampoline t;
-    if (!target || !hook_fn)
-        return t;
     t.addr = target;
     t.ok = patchTrampEntry(target, hook_fn);
     return t;

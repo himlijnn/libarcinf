@@ -9,11 +9,8 @@
 
 static char g_newpath[1024];
 
-extern "C"
-{
-    void *g_cave = nullptr;
-    const char *(*g_pathfn)(const char *) = nullptr;
-}
+void *g_cave = nullptr;
+const char *(*g_pathfn)(const char *) = nullptr;
 
 static const char *transformPath(char *buf, int sz, const char *path)
 {
@@ -32,7 +29,7 @@ static const char *transformPath(char *buf, int sz, const char *path)
     if (!*rel)
         return path;
 
-    int n = snprintf(buf, sz, "%s/%s", "/sdcard/arcinf/assets/songs", rel);
+    int n = snprintf(buf, sz, "%ssongs/%s", OFF_ASSETS_DIR, rel);
     return (n > 0 && n < sz) ? buf : path;
 }
 
@@ -64,12 +61,8 @@ __attribute__((naked)) static void pathTramp()
 
 void installVideoHook()
 {
-    void *h = dlopen("libcocos2dcpp.so", RTLD_NOW | RTLD_GLOBAL);
-    if (!h)
-        return;
-    uintptr_t b = getModuleBase("libcocos2dcpp.so");
-    if (!b)
-        b = (uintptr_t)h;
+    (void)dlopen(TARGET, RTLD_NOW | RTLD_GLOBAL);
+    uintptr_t b = getModuleBase(TARGET);
 
     g_pathfn = &redirectPath;
 

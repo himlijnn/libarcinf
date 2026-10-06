@@ -12,6 +12,9 @@ add_library(arcinf SHARED
     src/main.cpp
     src/skill.cpp
     src/video.cpp
+    src/autoplay.cpp
+    src/settings.cpp
+    src/security.cpp
 )
 
 target_include_directories(arcinf PRIVATE src)
@@ -20,6 +23,7 @@ target_include_directories(arcinf PRIVATE src)
 target_link_libraries(arcinf PRIVATE dl)
 
 set(RELEASE_CXX_FLAGS
+    -O2
     -fno-ident
     -fno-exceptions
     -fno-rtti

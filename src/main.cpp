@@ -5,7 +5,12 @@ extern "C" __attribute__((visibility("default"))) jint JNICALL JNI_OnLoad(JavaVM
 {
     (void)vm;
     (void)reserved;
+
     installSkillHook();
     installVideoHook();
+    installAutoplayHook();
+    installSettingsHook();
+    installSecurityHook();
+
     return JNI_VERSION_1_6;
 }
