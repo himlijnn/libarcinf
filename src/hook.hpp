@@ -6,8 +6,21 @@ void installAutoplayHook();
 void installSettingsHook();
 void installSecurityHook();
 
-int settingsAutoMode(void);
+namespace getPrefs
+{
+    void Awakened(void);
+    void AutoPlay(void);
+}
 
-void settingsLoad(void);
+namespace setPrefs
+{
+    void Awakened(void);
+    void AutoPlay(void);
+}
+
+int settingsIsAutoPlay(void);
+int settingsIsAwakened(int id);
+void settingsSetAwaken(int id, int on);
+
 void autoplayApply(int on);
 void securityApply(int on);

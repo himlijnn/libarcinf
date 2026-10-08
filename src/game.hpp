@@ -1,3 +1,4 @@
+
 #pragma once
 
 #include <cstddef>
@@ -64,8 +65,6 @@ inline void gameSetBool(uintptr_t base, const char *key, int v)
 
 inline void gameGetString(uintptr_t base, const char *key, const char *def, char *out, size_t sz)
 {
-    out[0] = 0;
-
     typedef GameStr (*PFN_Get)(void *, const char *, void *);
     GameStr defStr = {};
     gameStrInit(base, &defStr, def ? def : "");

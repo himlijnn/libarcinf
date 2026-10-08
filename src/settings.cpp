@@ -1,5 +1,6 @@
 
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <dlfcn.h>
 #include <sys/mman.h>
@@ -9,16 +10,15 @@
 #include "offset.hpp"
 #include "trampoline.hpp"
 
-__attribute__((naked, used)) static void asmNop()
-{
-    __asm__ __volatile__("nop");
-}
-
-static const char *SET_KEY_AUTOMODE = "autoMode";
-
 static uintptr_t g_base = 0;
-static int g_auto = 0;
-static int g_auto_loaded = 0;
+
+static const char *PREF_KEY_AUTOPLAY = "autoPlay";
+static const char *PREF_KEY_AWAKENED = "awakened";
+
+static int g_autoPlay = 0;
+static uint8_t g_awaken[g_char_num] = {0};
+static bool g_autoPlay_loaded = false;
+static bool g_awaken_loaded = false;
 
 static void applyAll(int v)
 {
@@ -26,41 +26,103 @@ static void applyAll(int v)
     securityApply(v);
 }
 
-static void setAutoMode(int v, int persist)
+int settingsIsAutoPlay(void)
 {
-    v = v ? 1 : 0;
-    g_auto = v;
-    if (persist && g_auto_loaded)
-        gameSetBool(g_base, SET_KEY_AUTOMODE, v);
-    applyAll(v);
+    return g_autoPlay;
 }
 
-int settingsAutoMode(void)
+int settingsIsAwakened(int id)
 {
-    return g_auto;
+    return (id >= 0 && id < g_char_num) ? g_awaken[id] : 0;
 }
 
-void settingsLoad(void)
+void settingsSetAwaken(int id, int on)
 {
-    if (g_auto_loaded)
+    if (id < 0 || id >= g_char_num)
         return;
-    g_auto_loaded = 1;
-    g_auto = gameGetBool(g_base, SET_KEY_AUTOMODE, 0) ? 1 : 0;
-    applyAll(g_auto);
+    g_awaken[id] = on ? 1 : 0;
+    setPrefs::Awakened();
+}
+
+namespace getPrefs
+{
+    void Awakened()
+    {
+        if (g_awaken_loaded)
+            return;
+        g_awaken_loaded = true;
+
+        char buf[512];
+        gameGetString(g_base, PREF_KEY_AWAKENED, "", buf, sizeof(buf));
+        memset(g_awaken, 0, sizeof(g_awaken));
+        int id = -1;
+        for (const char *p = buf;; p++)
+        {
+            const char ch = *p;
+            if (ch >= '0' && ch <= '9')
+            {
+                if (id < g_char_num)
+                    id = (id < 0 ? 0 : id) * 10 + (ch - '0');
+                continue;
+            }
+            if (id >= 0 && id < g_char_num)
+                g_awaken[id] = 1;
+            id = -1;
+            if (!ch)
+                break;
+        }
+    }
+
+    void AutoPlay()
+    {
+        if (g_autoPlay_loaded)
+            return;
+        g_autoPlay_loaded = true;
+
+        g_autoPlay = gameGetBool(g_base, PREF_KEY_AUTOPLAY, 0) ? 1 : 0;
+        applyAll(g_autoPlay);
+    }
+}
+
+namespace setPrefs
+{
+    void Awakened()
+    {
+        char val[512];
+        val[0] = 0;
+        size_t len = 0;
+        for (int i = 0; i < g_char_num; i++)
+        {
+            if (!g_awaken[i])
+                continue;
+            const int m = snprintf(val + len, sizeof(val) - len, "%s%d", len ? "," : "", i);
+            if (m <= 0 || (size_t)m >= sizeof(val) - len)
+                break;
+            len += (size_t)m;
+        }
+        gameSetString(g_base, PREF_KEY_AWAKENED, val);
+    }
+
+    void AutoPlay()
+    {
+        gameSetBool(g_base, PREF_KEY_AUTOPLAY, g_autoPlay);
+    }
 }
 
 int onStaminaGet(void *callable)
 {
     (void)callable;
-    settingsLoad();
-    return g_auto ? 1 : 0;
+    getPrefs::AutoPlay();
+    return g_autoPlay;
 }
 
 int onStaminaTap(void *callable)
 {
     (void)callable;
-    setAutoMode(g_auto ? 0 : 1, 1);
-    return g_auto;
+    g_autoPlay = g_autoPlay ? 0 : 1;
+    applyAll(g_autoPlay);
+    setPrefs::AutoPlay();
+    return g_autoPlay;
 }
 
 static const uint32_t g_set_tbz_sites[] = {OFF_SET_AVAIL_BYTE_TBZ, OFF_SET_AVAIL_VIRT_TBZ};
@@ -79,12 +141,9 @@ static void patchWord(uintptr_t addr, uint32_t w)
 
 static void disableOfflineBranchForOurRow()
 {
-    uint32_t nop;
-    memcpy(&nop, reinterpret_cast<const void *>(&asmNop), sizeof(nop));
     for (int i = 0; i < g_set_site_count; i++)
-        patchWord(g_base + g_set_tbz_sites[i], nop);
+        patchWord(g_base + g_set_tbz_sites[i], 0xD503201F);
 }
-
 static void patchBranch(uintptr_t from, uintptr_t to)
 {
     patchWord(from, makeBranchWord(from, to));
