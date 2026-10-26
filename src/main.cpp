@@ -1,4 +1,5 @@
 #include <jni.h>
+
 #include "hook.hpp"
 
 extern "C" __attribute__((visibility("default"))) jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved)
@@ -9,8 +10,14 @@ extern "C" __attribute__((visibility("default"))) jint JNICALL JNI_OnLoad(JavaVM
     installSkillHook();
     installVideoHook();
     installSettingsHook();
-    installSecurityHook();
+
+#if enableAutoplayHook
     installAutoplayHook();
+#endif
+
+#if enableSecurityHook
+    installSecurityHook();
+#endif
 
     return JNI_VERSION_1_6;
 }

@@ -2,8 +2,8 @@
 
 void installSkillHook();
 void installVideoHook();
-void installAutoplayHook();
 void installSettingsHook();
+void installAutoplayHook();
 void installSecurityHook();
 
 namespace getPrefs

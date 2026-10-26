@@ -7,9 +7,7 @@
 #include "trampoline.hpp"
 #include "offset.hpp"
 
-#define AP_ENTRY_HOOK 1
-
-#define AP_STUB_SITES ((1 << AP_SITE_MISS_NOTE) | (1 << AP_SITE_MISS_ARC_CHILD))
+#if enableAutoplayHook
 
 struct ApSite
 {
@@ -40,13 +38,11 @@ static inline bool isStubSite(int site_idx)
     return site_idx >= 0 && site_idx < AP_STUB_COUNT;
 }
 
-#if AP_STUB_SITES
 extern uint64_t g_ap_hit_fn;
 extern uint64_t g_ap_back_note;
 extern uint64_t g_ap_back_arc_child;
 static void apHitStubNote();
 static void apHitStubArcChild();
-#endif
 
 static uintptr_t g_ap_base = 0;
 
@@ -57,12 +53,10 @@ static uint32_t g_ap_stub_save[AP_STUB_COUNT][4] = {{0}};
 
 static Trampoline g_ap_scan;
 
-#if AP_ENTRY_HOOK
 int64_t onNoteScan(int64_t a1, int64_t a2);
 static void setEntryHook(int on);
 static uint32_t g_ap_entry_save[4] = {0};
 static int g_ap_entry_on = 0;
-#endif
 
 static uint32_t readWord(uintptr_t addr)
 {
@@ -97,7 +91,6 @@ static void applySite(int i, int on)
     const ApSite &s = g_ap_sites[i];
     const uintptr_t site = g_ap_base + s.at;
 
-#if AP_STUB_SITES
     if (isStubSite(i))
     {
 
@@ -123,7 +116,6 @@ static void applySite(int i, int on)
         }
         return;
     }
-#endif
 
     uint32_t w = g_ap_orig[i];
     if (on)
@@ -150,9 +142,7 @@ void autoplayApply(int on)
             continue;
         applySite(i, on);
     }
-#if AP_ENTRY_HOOK
     setEntryHook(on);
-#endif
 }
 
 #define AP_STARTED_MAX 256
@@ -263,7 +253,6 @@ static void tickLongNotes(uintptr_t ctx)
     }
 }
 
-#if AP_ENTRY_HOOK
 static void setEntryHook(int on)
 {
     if (!g_ap_base)
@@ -288,9 +277,6 @@ int64_t onNoteScan(int64_t a1, int64_t a2)
     typedef int64_t (*PFN)(int64_t, int64_t);
     return ((PFN)g_ap_scan.cave)(a1, a2);
 }
-#endif
-
-#if AP_STUB_SITES
 
 uint64_t g_ap_hit_fn = 0;
 uint64_t g_ap_back_note = 0;
@@ -329,7 +315,6 @@ uint64_t g_ap_back_arc_child = 0;
 
 AP_HIT_STUB(apHitStubNote, g_ap_back_note)
 AP_HIT_STUB(apHitStubArcChild, g_ap_back_arc_child)
-#endif
 
 void installAutoplayHook()
 {
@@ -345,11 +330,7 @@ void installAutoplayHook()
         g_ap_orig[i] = readWord(base + g_ap_sites[i].at);
     }
 
-#if AP_STUB_SITES
     g_ap_hit_fn = base + OFF_AP_HIT_FN;
-#endif
-
-#if AP_ENTRY_HOOK
 
     for (int k = 0; k < 4; k++)
         g_ap_entry_save[k] = readWord(base + OFF_AP_SCAN + 4 * k);
@@ -359,5 +340,17 @@ void installAutoplayHook()
         g_ap_scan.addr = base + OFF_AP_SCAN;
         g_ap_scan.cave = makeTrampCave(g_ap_entry_save, g_ap_scan.addr + 16);
     }
-#endif
 }
+
+#else
+
+void installAutoplayHook()
+{
+}
+
+void autoplayApply(int on)
+{
+    (void)on;
+}
+
+#endif
