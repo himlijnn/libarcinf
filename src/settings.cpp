@@ -167,6 +167,121 @@ static void hideInviteRow()
     patchBranch(g_base + OFF_SET_INVITE_PUSH, g_base + OFF_SET_INVITE_PUSH + 12);
 }
 
+typedef void (*PFN_CreditLine)(void *, void *, int, int, int, float);
+
+static Trampoline g_credits_line;
+
+static bool isCreditStr(const void *str, const char *want)
+{
+    return strcmp(gameStrText(static_cast<const GameStr *>(str)), want) == 0;
+}
+
+struct CreditLine
+{
+    const char *text;
+    int head;
+    int font;
+    float scale;
+};
+
+static const CreditLine kParticleArts[] = {
+    {"\"Particle Arts\"", 0, 30, 0.5f},
+    {"Performed by Virtual Self", 1, 24, 0.5f},
+    {"Written by Porter Robinson", 1, 24, 0.5f},
+    {"Courtesy of Virtual Self and mtheory", 1, 24, 0.5f},
+    {"By arrangement with Hidden Track Music", 1, 24, 0.5f},
+    {" ", 1, 30, 1.0f},
+};
+
+static void addCreditLine(void *ctx, const CreditLine &line)
+{
+    GameStr s = {};
+    gameStrInit(g_base, &s, line.text);
+    ((PFN_CreditLine)g_credits_line.cave)(ctx, &s, line.head, 0, line.font, line.scale);
+    gameStrFree(&s);
+}
+
+static void onCreditsLine(void *ctx, void *str, int head, int a4, int font, float scale)
+{
+    if (head == 0 && a4 == 0 && font == 30 && isCreditStr(str, "\"Scarlet Cage\""))
+        for (const CreditLine &line : kParticleArts)
+            addCreditLine(ctx, line);
+
+    ((PFN_CreditLine)g_credits_line.cave)(ctx, str, head, a4, font, scale);
+}
+
+static void creditsHook(uintptr_t base)
+{
+    if (!base)
+        return;
+    g_credits_line = installTrampoline(base + OFF_CREDITS_LINE, (void *)&onCreditsLine);
+}
+
+
+#define VT_GET_CHILD_BY_NAME 528
+#define VT_SET_ENABLED 1368
+#define VT_HIDE 336
+
+typedef void *(*PFN_CreateUiNode)(void *);
+typedef void *(*PFN_GetChildByName)(void *, void *);
+typedef void (*PFN_SetBool)(void *, int);
+
+static Trampoline g_login_node;
+
+
+struct LoginHide
+{
+    const char *name;
+    bool disable;
+};
+
+static const LoginHide kLoginHide[] = {
+    {"login_button", true},
+    {"register_button", true},
+    {"login_hint", false},
+    {"login_hint_warning", false},
+};
+
+static void hideLoginParts(void *root)
+{
+    const uintptr_t vt = *static_cast<uintptr_t *>(root);
+
+    for (const LoginHide &target : kLoginHide)
+    {
+        GameStr key = {};
+        gameStrInit(g_base, &key, target.name);
+        void *child = reinterpret_cast<PFN_GetChildByName>(
+            *reinterpret_cast<uintptr_t *>(vt + VT_GET_CHILD_BY_NAME))(root, &key);
+        gameStrFree(&key);
+
+        if (!child)
+            continue;
+
+    
+        const uintptr_t cvt = *static_cast<uintptr_t *>(child);
+        if (target.disable)
+            reinterpret_cast<PFN_SetBool>(*reinterpret_cast<uintptr_t *>(cvt + VT_SET_ENABLED))(child, 0);
+        reinterpret_cast<PFN_SetBool>(*reinterpret_cast<uintptr_t *>(cvt + VT_HIDE))(child, 0);
+    }
+}
+
+static void *onCreateUiNode(void *str)
+{
+    void *node = ((PFN_CreateUiNode)g_login_node.cave)(str);
+
+    if (node && str && strstr(gameStrText(static_cast<const GameStr *>(str)), "LoggedOutNetwork"))
+        hideLoginParts(node);
+
+    return node;
+}
+
+static void loginHook(uintptr_t base)
+{
+    if (!base)
+        return;
+    g_login_node = installTrampoline(base + OFF_CREATE_UI_NODE, (void *)&onCreateUiNode);
+}
+
 void installSettingsHook()
 {
     (void)dlopen(TARGET, RTLD_NOW | RTLD_GLOBAL);
@@ -179,4 +294,6 @@ void installSettingsHook()
     (void)replaceFunction(base + OFF_SET_STAMINA_TAP, (void *)&onStaminaTap);
 #endif
     hideInviteRow();
+    creditsHook(base);
+    loginHook(base);
 }

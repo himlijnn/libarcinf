@@ -3,7 +3,7 @@
 #define TARGET "libcocos2dcpp.so"
 #define OFF_ASSETS_DIR "/sdcard/arcinf/assets/"
 
-/* comfile config */
+/* compile config */
 
 #define enableAutoplayHook true
 #define enableSecurityHook true // FALSE when enableAutoplayHook is false
@@ -45,6 +45,10 @@
 #define OFF_SET_GET_CB 0x1016AE4
 #define OFF_SET_STAMINA_TAP 0xACC244
 #define OFF_SET_INVITE_PUSH 0x154BC10
+
+#define OFF_CREDITS_LINE 0x11F6E68
+
+#define OFF_CREATE_UI_NODE 0x14FEA90
 
 #define OFF_SEC_NOTSAVED_SET 0x94D7C8
 

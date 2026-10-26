@@ -1,6 +1,8 @@
 #include <jni.h>
 
 #include "hook.hpp"
+#include "offset.hpp"
+
 
 extern "C" __attribute__((visibility("default"))) jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved)
 {

@@ -282,39 +282,43 @@ uint64_t g_ap_hit_fn = 0;
 uint64_t g_ap_back_note = 0;
 uint64_t g_ap_back_arc_child = 0;
 
-#define AP_HIT_STUB(NAME, BACK)                     \
-    __attribute__((naked, used)) static void NAME() \
-    {                                               \
-        asm volatile(                               \
-            "str  x1, [sp, #-0x10]!\n"              \
-            "ldr  x0, [x19, #0x38]\n"               \
-            "mov  w2, #0\n"                         \
-            "mov  w3, #0\n"                         \
-            "mov  w4, wzr\n"                        \
-            "mov  w5, #-1\n"                        \
-            "ldr  x1, [sp]\n"                       \
-            "adrp x16, g_ap_hit_fn\n"               \
-            "ldr  x16, [x16, #:lo12:g_ap_hit_fn]\n" \
-            "blr  x16\n"                            \
-            "ldr  x0, [x19, #0x40]\n"               \
-            "cbz  x0, 9f\n"                         \
-            "mov  w2, #0\n"                         \
-            "mov  w3, #1\n"                         \
-            "ldr  x9, [x0]\n"                       \
-            "cbz  x9, 9f\n"                         \
-            "ldr  x9, [x9, #0x8]\n"                 \
-            "cbz  x9, 9f\n"                         \
-            "ldr  x1, [sp]\n"                       \
-            "blr  x9\n"                             \
-            "9:\n"                                  \
-            "ldr  x1, [sp], #0x10\n"                \
-            "adrp x16, " #BACK "\n"                 \
-            "ldr  x16, [x16, #:lo12:" #BACK "]\n"   \
-            "br   x16\n");                          \
-    }
+#define AP_HIT_STUB_BODY(BACK)                  \
+    asm volatile(                               \
+        "str  x1, [sp, #-0x10]!\n"              \
+        "ldr  x0, [x19, #0x38]\n"               \
+        "mov  w2, #0\n"                         \
+        "mov  w3, #0\n"                         \
+        "mov  w4, wzr\n"                        \
+        "mov  w5, #-1\n"                        \
+        "ldr  x1, [sp]\n"                       \
+        "adrp x16, g_ap_hit_fn\n"               \
+        "ldr  x16, [x16, #:lo12:g_ap_hit_fn]\n" \
+        "blr  x16\n"                            \
+        "ldr  x0, [x19, #0x40]\n"               \
+        "cbz  x0, 9f\n"                         \
+        "mov  w2, #0\n"                         \
+        "mov  w3, #1\n"                         \
+        "ldr  x9, [x0]\n"                       \
+        "cbz  x9, 9f\n"                         \
+        "ldr  x9, [x9, #0x8]\n"                 \
+        "cbz  x9, 9f\n"                         \
+        "ldr  x1, [sp]\n"                       \
+        "blr  x9\n"                             \
+        "9:\n"                                  \
+        "ldr  x1, [sp], #0x10\n"                \
+        "adrp x16, " #BACK "\n"                 \
+        "ldr  x16, [x16, #:lo12:" #BACK "]\n"   \
+        "br   x16\n")
 
-AP_HIT_STUB(apHitStubNote, g_ap_back_note)
-AP_HIT_STUB(apHitStubArcChild, g_ap_back_arc_child)
+__attribute__((naked, used)) static void apHitStubNote()
+{
+    AP_HIT_STUB_BODY(g_ap_back_note);
+}
+
+__attribute__((naked, used)) static void apHitStubArcChild()
+{
+    AP_HIT_STUB_BODY(g_ap_back_arc_child);
+}
 
 void installAutoplayHook()
 {
