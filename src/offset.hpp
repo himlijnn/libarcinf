@@ -1,8 +1,14 @@
 #pragma once
 
 #define TARGET "libcocos2dcpp.so"
-
 #define OFF_ASSETS_DIR "/sdcard/arcinf/assets/"
+
+/* comfile config */
+
+#define enableAutoplayHook true
+#define enableSecurityHook true // FALSE when enableAutoplayHook is false
+
+/* offset */
 
 #define OFF_PATH_TRAMP 0x1505498
 
@@ -55,6 +61,8 @@
 
 #define OFF_AP_VT_ARC 0x1AC6A80
 #define OFF_AP_VT_HOLD 0x1B44C08
+
+/* char info */
 
 struct CharInfo
 {

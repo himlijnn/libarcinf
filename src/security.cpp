@@ -7,6 +7,8 @@
 #include "offset.hpp"
 #include "trampoline.hpp"
 
+#if enableSecurityHook
+
 static uintptr_t g_sec_base = 0;
 static uint32_t g_sec_orig = 0;
 static int g_sec_applied = 0;
@@ -45,3 +47,16 @@ void installSecurityHook()
     g_sec_orig = secRead(base + OFF_SEC_NOTSAVED_SET);
     securityApply(settingsIsAutoPlay());
 }
+
+#else
+
+void installSecurityHook()
+{
+}
+
+void securityApply(int on)
+{
+    (void)on;
+}
+
+#endif

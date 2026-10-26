@@ -22,8 +22,14 @@ static bool g_awaken_loaded = false;
 
 static void applyAll(int v)
 {
+#if enableAutoplayHook
     autoplayApply(v);
+#endif
+#if enableSecurityHook
     securityApply(v);
+#else
+    (void)v;
+#endif
 }
 
 int settingsIsAutoPlay(void)
@@ -79,8 +85,10 @@ namespace getPrefs
             return;
         g_autoPlay_loaded = true;
 
+#if enableAutoplayHook
         g_autoPlay = gameGetBool(g_base, PREF_KEY_AUTOPLAY, 0) ? 1 : 0;
         applyAll(g_autoPlay);
+#endif
     }
 }
 
@@ -125,9 +133,11 @@ int onStaminaTap(void *callable)
     return g_autoPlay;
 }
 
+#if enableAutoplayHook
 static const uint32_t g_set_tbz_sites[] = {OFF_SET_AVAIL_BYTE_TBZ, OFF_SET_AVAIL_VIRT_TBZ};
 static const int g_set_site_count =
     static_cast<int>(sizeof(g_set_tbz_sites) / sizeof(g_set_tbz_sites[0]));
+#endif
 
 static void patchWord(uintptr_t addr, uint32_t w)
 {
@@ -139,11 +149,14 @@ static void patchWord(uintptr_t addr, uint32_t w)
     mprotect(reinterpret_cast<void *>(page), ps, PROT_READ | PROT_EXEC);
 }
 
+#if enableAutoplayHook
 static void disableOfflineBranchForOurRow()
 {
     for (int i = 0; i < g_set_site_count; i++)
         patchWord(g_base + g_set_tbz_sites[i], 0xD503201F);
 }
+#endif
+
 static void patchBranch(uintptr_t from, uintptr_t to)
 {
     patchWord(from, makeBranchWord(from, to));
@@ -160,8 +173,10 @@ void installSettingsHook()
     const uintptr_t base = getModuleBase(TARGET);
     g_base = base;
 
+#if enableAutoplayHook
     disableOfflineBranchForOurRow();
     (void)replaceFunction(base + OFF_SET_GET_CB, (void *)&onStaminaGet);
     (void)replaceFunction(base + OFF_SET_STAMINA_TAP, (void *)&onStaminaTap);
+#endif
     hideInviteRow();
 }
