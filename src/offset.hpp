@@ -1,12 +1,12 @@
 #pragma once
 
 #define TARGET "libcocos2dcpp.so"
-#define OFF_ASSETS_DIR "/sdcard/arcinf/assets/"
+#define ASSETS_DIR "/sdcard/arcinf/assets/"
 
 /* compile config */
 
 #define enableAutoplayHook true
-#define enableSecurityHook true // FALSE when enableAutoplayHook is false
+#define enableSecurityHook (enableAutoplayHook && true)
 
 /* offset */
 

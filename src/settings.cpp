@@ -24,9 +24,9 @@ static void applyAll(int v)
 {
 #if enableAutoplayHook
     autoplayApply(v);
-#endif
 #if enableSecurityHook
     securityApply(v);
+#endif
 #else
     (void)v;
 #endif
@@ -78,15 +78,13 @@ namespace getPrefs
                 break;
         }
     }
-
     void AutoPlay()
     {
         if (g_autoPlay_loaded)
             return;
         g_autoPlay_loaded = true;
-
-#if enableAutoplayHook
         g_autoPlay = gameGetBool(g_base, PREF_KEY_AUTOPLAY, 0) ? 1 : 0;
+#if enableAutoplayHook
         applyAll(g_autoPlay);
 #endif
     }
@@ -133,11 +131,9 @@ int onStaminaTap(void *callable)
     return g_autoPlay;
 }
 
-#if enableAutoplayHook
 static const uint32_t g_set_tbz_sites[] = {OFF_SET_AVAIL_BYTE_TBZ, OFF_SET_AVAIL_VIRT_TBZ};
 static const int g_set_site_count =
     static_cast<int>(sizeof(g_set_tbz_sites) / sizeof(g_set_tbz_sites[0]));
-#endif
 
 static void patchWord(uintptr_t addr, uint32_t w)
 {
@@ -217,17 +213,11 @@ static void creditsHook(uintptr_t base)
     g_credits_line = installTrampoline(base + OFF_CREDITS_LINE, (void *)&onCreditsLine);
 }
 
-
-#define VT_GET_CHILD_BY_NAME 528
-#define VT_SET_ENABLED 1368
-#define VT_HIDE 336
-
 typedef void *(*PFN_CreateUiNode)(void *);
 typedef void *(*PFN_GetChildByName)(void *, void *);
 typedef void (*PFN_SetBool)(void *, int);
 
 static Trampoline g_login_node;
-
 
 struct LoginHide
 {
@@ -251,17 +241,16 @@ static void hideLoginParts(void *root)
         GameStr key = {};
         gameStrInit(g_base, &key, target.name);
         void *child = reinterpret_cast<PFN_GetChildByName>(
-            *reinterpret_cast<uintptr_t *>(vt + VT_GET_CHILD_BY_NAME))(root, &key);
+            *reinterpret_cast<uintptr_t *>(vt + 528))(root, &key);
         gameStrFree(&key);
 
         if (!child)
             continue;
 
-    
         const uintptr_t cvt = *static_cast<uintptr_t *>(child);
         if (target.disable)
-            reinterpret_cast<PFN_SetBool>(*reinterpret_cast<uintptr_t *>(cvt + VT_SET_ENABLED))(child, 0);
-        reinterpret_cast<PFN_SetBool>(*reinterpret_cast<uintptr_t *>(cvt + VT_HIDE))(child, 0);
+            reinterpret_cast<PFN_SetBool>(*reinterpret_cast<uintptr_t *>(cvt + 1368))(child, 0);
+        reinterpret_cast<PFN_SetBool>(*reinterpret_cast<uintptr_t *>(cvt + 336))(child, 0);
     }
 }
 

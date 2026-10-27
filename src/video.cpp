@@ -35,7 +35,7 @@ static const char *transformPath(char *buf, int sz, const char *path)
         return path;
     }
 
-    int n = snprintf(buf, sz, "%s%s%s", OFF_ASSETS_DIR, prefix, rel);
+    int n = snprintf(buf, sz, "%s%s%s", ASSETS_DIR, prefix, rel);
     return (n < sz) ? buf : path;
 }
 
