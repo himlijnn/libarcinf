@@ -8,63 +8,63 @@
 #define enableAutoplayHook true
 #define enableSecurityHook (enableAutoplayHook && true)
 
-/* offset */
+/* offset with 7.1.0c */
 
-#define OFF_PATH_TRAMP 0x1505498
+#define OFF_PATH_TRAMP 0x10CD508
 
-#define OFF_Init 0x152F6A4
-#define OFF_OnlineSkill 0xE74100
-#define OFF_FileNameCtor 0x10D8FE0
-#define OFF_StringCtor 0x19AA138
-#define OFF_RefAdd 0x1A089B0
+#define OFF_Init 0x19FAE38
+#define OFF_OnlineSkill 0xC6B6DC
+#define OFF_FileNameCtor 0xC7D734
+#define OFF_StringCtor 0x104BAAC
+#define OFF_RefAdd 0xEA0FE8
 
-#define OFF_SetCharBorder 0xBC0A7C
-#define OFF_SetBarFill 0x161F770
+#define OFF_SetCharBorder 0xF43A9C
+#define OFF_SetBarFill 0xD3F0B8
 
-#define OFF_SetLabelText 0xACF350
-#define OFF_Localize 0x101A7E4
+#define OFF_SetLabelText 0xC0518C
+#define OFF_Localize 0xB866D0
 
-#define OFF_SkillMayaText 0x5272C8
-#define OFF_SealCtx 0x1BE7028
+#define OFF_SkillMayaText 0x52A25A
+#define OFF_SealCtx 0x1BF0B58
 
-#define OFF_RenderCharUI 0x1967CF8
-#define OFF_AwakenCheck 0x113F088
-#define OFF_RefreshCharState 0x10C8BAC
-#define OFF_ModifyCharState 0x127E1CC
+#define OFF_RenderCharUI 0x147FCC8
+#define OFF_AwakenCheck 0x1412140
+#define OFF_RefreshCharState 0xE413B0
+#define OFF_ModifyCharState 0x11225F4
 
-#define OFF_AWAKEN_CALL 0x127E230
-#define OFF_AWAKEN_CALLER 0xC2406C
+#define OFF_AWAKEN_CALL 0x1122658
+#define OFF_AWAKEN_CALLER 0xA09C94
 
-#define OFF_UserDefaultSetString 0x10FC528
-#define OFF_UserDefaultGetString 0x182C54C
-#define OFF_UserDefaultSetBool 0x110C0BC
-#define OFF_UserDefaultGetBool 0x19089D8
+#define OFF_UserDefaultSetString 0x999654
+#define OFF_UserDefaultGetString 0xEC1D24
+#define OFF_UserDefaultSetBool 0xB867F0
+#define OFF_UserDefaultGetBool 0xFE2218
 
-#define OFF_SET_AVAIL_BYTE_TBZ 0x154AFC4
-#define OFF_SET_AVAIL_VIRT_TBZ 0x154AFD0
-#define OFF_SET_GET_CB 0x1016AE4
-#define OFF_SET_STAMINA_TAP 0xACC244
-#define OFF_SET_INVITE_PUSH 0x154BC10
+#define OFF_SET_AVAIL_BYTE_TBZ 0xCE8BBC
+#define OFF_SET_AVAIL_VIRT_TBZ 0xCE8BC8
+#define OFF_SET_GET_CB 0x130CF3C
+#define OFF_SET_STAMINA_TAP 0x1A44678
+#define OFF_SET_INVITE_PUSH 0xCE9808
 
-#define OFF_CREDITS_LINE 0x11F6E68
+#define OFF_CREDITS_LINE 0xB1D684
 
-#define OFF_CREATE_UI_NODE 0x14FEA90
+#define OFF_CREATE_UI_NODE 0x12DD104
 
-#define OFF_SEC_NOTSAVED_SET 0x94D7C8
+#define OFF_SEC_NOTSAVED_SET 0x12D1800
 
-#define OFF_AP_SCAN 0x127D830
-#define OFF_AP_SKIP_NOTE 0x127D8C0
-#define OFF_AP_MISS_NOTE 0x127DE34
-#define OFF_AP_SKIP_ARC_CHILD 0x127DD58
-#define OFF_AP_MISS_ARC_CHILD 0x127DDE4
-#define OFF_AP_HIT_FN 0xB4DB58
-#define OFF_AP_MISS_HANDLER 0xE19784
-#define OFF_AP_WINDOW_NOTE 0x127DE20
-#define OFF_AP_WINDOW_ARCTAP 0x127DDD0
-#define OFF_AP_WINDOW_TAP 0x127DD18
+#define OFF_AP_SCAN 0xA45D68
+#define OFF_AP_SKIP_NOTE 0xA45DF8
+#define OFF_AP_MISS_NOTE 0xA4636C
+#define OFF_AP_SKIP_ARC_CHILD 0xA46290
+#define OFF_AP_MISS_ARC_CHILD 0xA4631C
+#define OFF_AP_HIT_FN 0x12EB93C
+#define OFF_AP_MISS_HANDLER 0xF4914C
+#define OFF_AP_WINDOW_NOTE 0xA46358
+#define OFF_AP_WINDOW_ARCTAP 0xA46308
+#define OFF_AP_WINDOW_TAP 0xA46250
 
-#define OFF_AP_VT_ARC 0x1AC6A80
-#define OFF_AP_VT_HOLD 0x1B44C08
+#define OFF_AP_VT_ARC 0x1A95018
+#define OFF_AP_VT_HOLD 0x1A9C498
 
 /* char info */
 
@@ -177,6 +177,8 @@ static const CharInfo g_char_info[] = {
     {97, false, "skill_saya_konzetsu", ""},
     {98, false, "skill_insight_konzetsu", ""},
     {99, false, "frags_preferred_song", ""},
+    {100, false, "skill_ilith_halloween", ""},
+    {101, false, "skill_stream_palette", ""},
 };
 
 static const int g_char_num = (int)(sizeof(g_char_info) / sizeof(g_char_info[0]));

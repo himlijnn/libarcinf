@@ -228,8 +228,8 @@ struct LoginHide
 static const LoginHide kLoginHide[] = {
     {"login_button", true},
     {"register_button", true},
-    {"login_hint", false},
-    {"login_hint_warning", false},
+    // {"login_hint", false},
+    // {"login_hint_warning", false},
 };
 
 static void hideLoginParts(void *root)
