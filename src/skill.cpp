@@ -32,6 +32,7 @@ static Trampoline g_awaken;
 static Trampoline g_modify;
 static Trampoline g_pborder;
 static Trampoline g_barfill;
+static Trampoline g_userslot1;
 
 static const CharInfo *findChar(int id)
 {
@@ -274,25 +275,18 @@ int64_t setupSkill(int64_t obj, int char_id)
 
     g_file_name_ctor(reinterpret_cast<void *>(obj), char_id);
 
-    uint8_t *flag280 = reinterpret_cast<uint8_t *>(obj + 280);
-    *flag280 = 0;
+    const CharInfo *ci = findChar(char_id);
+
+    if (!ci && char_id != -1)
+        return 0;
 
     int v5 = 0;
-
     switch (char_id)
     {
-
-    case -1:
-    case 1:
-        v5 = 0;
-        break;
-
     case 3:
     case 6:
-        *flag280 = 1;
         v5 = 2;
         break;
-
     case 31:
     case 32:
     case 38:
@@ -301,27 +295,17 @@ int64_t setupSkill(int64_t obj, int char_id)
     case 60:
     case 74:
         v5 = 1;
-        *flag280 = 1;
         break;
-
-    case 91:
-        v5 = 0;
-        *flag280 = 0;
-        break;
-
     default:
-    {
-        const CharInfo *ci = findChar(char_id);
-        if (!ci)
-            return 0;
+        break;
+    }
 
+    if (ci)
+    {
         const bool uncap = settingsIsAwakened(char_id) != 0;
         const char *sid = skillIdForChar(char_id, uncap);
         if (sid)
             buildOnlineSkill(obj, sid);
-        v5 = 0;
-        break;
-    }
     }
 
     *reinterpret_cast<int *>(obj + 168) = v5;
@@ -330,11 +314,58 @@ int64_t setupSkill(int64_t obj, int char_id)
     if (char_id >= 0 && char_id < g_char_num && hasUncap(char_id))
     {
         const int on = settingsIsAwakened(char_id);
-        *flag280 = (uint8_t)on;
         *reinterpret_cast<int *>(obj + 168) = on;
         *reinterpret_cast<uint8_t *>(obj + 202) = (uint8_t)(on ? 0 : 1);
     }
     return 1;
+}
+
+struct FakeUserSlot
+{
+    uint64_t pad[5];
+    uint8_t name[24];
+    uint64_t tail[5];
+};
+
+__attribute__((used)) static FakeUserSlot g_fake_user __asm__("g_fake_user");
+
+static void initFakeUserSlot()
+{
+    const size_t n = sizeof(CHAR101USERNAME) - 1;
+    g_fake_user.name[0] = (uint8_t)(n << 1);
+    for (size_t i = 0; i < n; i++)
+        g_fake_user.name[1 + i] = (uint8_t)CHAR101USERNAME[i];
+}
+
+__attribute__((used)) static uintptr_t g_userslot1_cont __asm__("g_userslot1_cont") = 0;
+
+__attribute__((naked)) static void onUserSlot1(void)
+{
+    asm volatile(
+        "cbz  x9, 9f\n"
+        "ldr  x9, [x9, #0xd0]\n"
+        "cbz  x9, 9f\n"
+        "ldrb w17, [x9, #0x28]\n"
+        "tbz  w17, #0, 1f\n"
+        "ldr  x16, [x9, #0x38]\n"
+        "cbz  x16, 9f\n"
+        "ldr  x16, [x9, #0x30]\n"
+        "cmp  x16, #256\n"
+        "b.lo 8f\n"
+        "b    9f\n"
+        "1:\n"
+        "cmp  w17, #44\n"
+        "b.ls 8f\n"
+        "9:\n"
+        "adrp x9, g_fake_user\n"
+        "add  x9, x9, :lo12:g_fake_user\n"
+        "8:\n"
+        "sturb w8, [x29, #-0x1c]\n"
+        "ldr  w8, [x0, #0xac]\n"
+        "stur w10, [x29, #-0x18]\n"
+        "adrp x16, g_userslot1_cont\n"
+        "ldr  x16, [x16, #:lo12:g_userslot1_cont]\n"
+        "br   x16");
 }
 
 void installSkillHook()
@@ -351,6 +382,8 @@ void installSkillHook()
 
     g_base = base;
 
+    initFakeUserSlot();
+
     (void)replaceFunction(base + OFF_Init, (void *)&setupSkill);
 
     g_refresh = installTrampoline(base + OFF_RefreshCharState, (void *)&onRefreshCharState);
@@ -359,4 +392,6 @@ void installSkillHook()
     g_modify = installTrampoline(base + OFF_ModifyCharState, (void *)&onModifyCharState);
     g_pborder = installTrampoline(base + OFF_SetCharBorder, (void *)&onSetCharBorder);
     g_barfill = installTrampoline(base + OFF_SetBarFill, (void *)&onSetBarFill);
+    g_userslot1_cont = base + OFF_CHAR101USERNAME_CONT;
+    g_userslot1 = installTrampoline(base + OFF_CHAR101USERNAME_READ, (void *)&onUserSlot1);
 }

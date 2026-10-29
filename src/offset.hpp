@@ -2,6 +2,7 @@
 
 #define TARGET "libcocos2dcpp.so"
 #define ASSETS_DIR "/sdcard/arcinf/assets/"
+#define CHAR101USERNAME " "
 
 /* compile config */
 
@@ -38,7 +39,7 @@
 #define OFF_UserDefaultSetString 0x999654
 #define OFF_UserDefaultGetString 0xEC1D24
 #define OFF_UserDefaultSetBool 0xB867F0
-#define OFF_UserDefaultGetBool 0xFE2218
+#define OFF_UserDefaultGetBool 0xFE24D0
 
 #define OFF_SET_AVAIL_BYTE_TBZ 0xCE8BBC
 #define OFF_SET_AVAIL_VIRT_TBZ 0xCE8BC8
@@ -49,6 +50,9 @@
 #define OFF_CREDITS_LINE 0xB1D684
 
 #define OFF_CREATE_UI_NODE 0x12DD104
+
+#define OFF_CHAR101USERNAME_READ 0xA7789C
+#define OFF_CHAR101USERNAME_CONT 0xA778AC
 
 #define OFF_SEC_NOTSAVED_SET 0x12D1800
 
