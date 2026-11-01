@@ -1,9 +1,9 @@
 #pragma once
 
+#include <link.h>
 #include <sys/mman.h>
 #include <unistd.h>
 #include <cstdint>
-#include <cstdio>
 #include <cstring>
 
 __attribute__((naked, used)) static void asmAbsJump()
@@ -18,28 +18,37 @@ inline long trampPageSize()
     return sysconf(_SC_PAGESIZE);
 }
 
+struct ModuleSearch
+{
+    const char *soname;
+    uintptr_t base;
+};
+
+inline bool isModuleName(const char *path, const char *soname)
+{
+    if (!path)
+        return false;
+    const char *fname = strrchr(path, '/');
+    fname = fname ? fname + 1 : path;
+    return strcmp(fname, soname) == 0;
+}
+
+inline int onPhdrInfo(struct dl_phdr_info *info, size_t, void *data)
+{
+    ModuleSearch *search = static_cast<ModuleSearch *>(data);
+    if (isModuleName(info->dlpi_name, search->soname))
+    {
+        search->base = static_cast<uintptr_t>(info->dlpi_addr);
+        return 1;
+    }
+    return 0;
+}
+
 inline uintptr_t getModuleBase(const char *soname)
 {
-    FILE *fp = fopen("/proc/self/maps", "r");
-    char line[512];
-    while (fgets(line, sizeof(line), fp))
-    {
-        char perms[8], path[256];
-        unsigned long start, end;
-        if (sscanf(line, "%lx-%lx %4s %*s %*s %*s %255s",
-                   &start, &end, perms, path) >= 3)
-        {
-            const char *fname = strrchr(path, '/');
-            fname = fname ? fname + 1 : path;
-            if (strstr(fname, soname) && perms[2] == 'x')
-            {
-                fclose(fp);
-                return start;
-            }
-        }
-    }
-    fclose(fp);
-    return 0;
+    ModuleSearch search = {soname, 0};
+    dl_iterate_phdr(onPhdrInfo, &search);
+    return search.base;
 }
 
 struct Trampoline
