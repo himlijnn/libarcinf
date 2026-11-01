@@ -266,8 +266,7 @@ static void *onCreateUiNode(void *str)
 
 static void loginHook(uintptr_t base)
 {
-    if (!base)
-        return;
+    
     g_login_node = installTrampoline(base + OFF_CREATE_UI_NODE, (void *)&onCreateUiNode);
 }
 
