@@ -1,31 +1,29 @@
 #pragma once
 
-#define TARGET "libcocos2dcpp.so"
-#define ASSETS_DIR "/sdcard/arcinf/assets/"
-#define CHAR101USERNAME " "
+// 7.1.0c
 
-/* compile config */
+/* 编译选项 */
 
 #define enableAutoplayHook true
 #define enableSecurityHook (enableAutoplayHook && true)
 
-/* offset with 7.1.0c */
+/* 常用字符串 */
+
+#define TARGET "libcocos2dcpp.so"
+#define ASSETS_DIR "/sdcard/arcinf/assets/"
+#define CHAR101USERNAME " " // 101 号角色技能显示的用户名
+
+/* 基础功能 */
 
 #define OFF_PATH_TRAMP 0x10CD508
+#define OFF_StringCtor 0x104BAAC
+#define OFF_FileNameCtor 0xC7D734
+#define OFF_RefAdd 0xEA0FE8
+
+/* 角色与技能 */
 
 #define OFF_Init 0x19FAE38
 #define OFF_OnlineSkill 0xC6B6DC
-#define OFF_FileNameCtor 0xC7D734
-#define OFF_StringCtor 0x104BAAC
-#define OFF_RefAdd 0xEA0FE8
-
-#define OFF_SetCharBorder 0xF43A9C
-#define OFF_SetBarFill 0xD3F0B8
-
-#define OFF_SetLabelText 0xC0518C
-#define OFF_Localize 0xB866D0
-
-#define OFF_SkillMayaText 0x52A25A
 #define OFF_SealCtx 0x1BF0B58
 
 #define OFF_RenderCharUI 0x147FCC8
@@ -36,25 +34,47 @@
 #define OFF_AWAKEN_CALL 0x1122658
 #define OFF_AWAKEN_CALLER 0xA09C94
 
+#define OFF_SetCharBorder 0xF43A9C
+#define OFF_SetBarFill 0xD3F0B8
+
+#define OFF_SetLabelText 0xC0518C
+#define OFF_Localize 0xB866D0
+#define OFF_SkillMayaText 0x52A25A
+
+#define OFF_CHAR101USERNAME_READ 0xA7789C
+#define OFF_CHAR101USERNAME_CONT 0xA778AC
+
+/* SharedPreferences */
+
 #define OFF_UserDefaultSetString 0x999654
 #define OFF_UserDefaultGetString 0xEC1D24
 #define OFF_UserDefaultSetBool 0xB867F0
 #define OFF_UserDefaultGetBool 0xFE24D0
 
+/* 设置界面 */
+
+// Stamina Notification 分支
 #define OFF_SET_AVAIL_BYTE_TBZ 0xCE8BBC
 #define OFF_SET_AVAIL_VIRT_TBZ 0xCE8BC8
+
+// Unavailable Offline 分支
+#define OFF_SET_ROW_OFFLINE_BLOCK 0xCE8CD0
+
+// 该行的取值 / 点击回调（被整段替换）
 #define OFF_SET_GET_CB 0x130CF3C
 #define OFF_SET_STAMINA_TAP 0x1A44678
+
+// "Invite Notification" 行的 push_back 三条指令。
 #define OFF_SET_INVITE_PUSH 0xCE9808
 
 #define OFF_CREDITS_LINE 0xB1D684
-
 #define OFF_CREATE_UI_NODE 0x12DD104
 
-#define OFF_CHAR101USERNAME_READ 0xA7789C
-#define OFF_CHAR101USERNAME_CONT 0xA778AC
+/* 存档 */
 
 #define OFF_SEC_NOTSAVED_SET 0x12D1800
+
+/* 自动游玩 */
 
 #define OFF_AP_SCAN 0xA45D68
 #define OFF_AP_SKIP_NOTE 0xA45DF8
@@ -70,7 +90,7 @@
 #define OFF_AP_VT_ARC 0x1A95018
 #define OFF_AP_VT_HOLD 0x1A9C498
 
-/* char info */
+/* 角色信息 */
 
 struct CharInfo
 {

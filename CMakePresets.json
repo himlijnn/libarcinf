@@ -9,7 +9,6 @@
         {
             "name": "android",
             "displayName": "Android arm64-v8a (Release)",
-            "description": "-",
             "generator": "Ninja",
             "binaryDir": "${sourceDir}/build",
             "cacheVariables": {

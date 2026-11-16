@@ -1,5 +1,6 @@
+// 资源路径重定向：把歌曲资源指向 ASSETS_DIR。
+// 只处理 songs/* 与 undyingmacula/*；其它路径交给原函数。
 
-#include <dlfcn.h>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -8,42 +9,39 @@
 #include "offset.hpp"
 #include "trampoline.hpp"
 
-static char g_newpath[128];
+static char g_redirectedPath[128];
 
+// 被 pathTramp 的 naked asm 用 adrp 直接引用，必须保留外部链接与固定名字。
 void *g_cave = nullptr;
 const char *(*g_pathfn)(const char *) = nullptr;
 
-static const char *transformPath(char *buf, int sz, const char *path)
+// undyingmacula/* 是旧版布局，统一挪到 songs/ 下；其它路径原样返回。
+static const char *transformPath(char *buffer, int size, const char *path)
 {
     if (!path || !*path)
-    {
         return path;
-    }
-    const char *rel = path;
-    while (*rel == '/')
-    {
-        rel++;
-    }
+
+    const char *relativePath = path;
+    while (*relativePath == '/')
+        relativePath++;
 
     const char *prefix = "";
-    if (strncmp(rel, "undyingmacula/", 14) == 0)
-    {
+    if (strncmp(relativePath, "undyingmacula/", 14) == 0)
         prefix = "songs/";
-    }
-    else if (strncmp(rel, "songs/", 6) != 0)
-    {
+    else if (strncmp(relativePath, "songs/", 6) != 0)
         return path;
-    }
 
-    int n = snprintf(buf, sz, "%s%s%s", ASSETS_DIR, prefix, rel);
-    return (n < sz) ? buf : path;
+    const int written = snprintf(buffer, size, "%s%s%s", ASSETS_DIR, prefix, relativePath);
+    return (written < size) ? buffer : path;
 }
 
-static const char *redirectPath(const char *orig)
+static const char *redirectPath(const char *originalPath)
 {
-    return transformPath(g_newpath, sizeof(g_newpath), orig);
+    return transformPath(g_redirectedPath, sizeof(g_redirectedPath), originalPath);
 }
 
+// (x0=receiver, x1=path)：保留 receiver，用重定向后的 path 调原函数。
+// 原函数后半段直接使用游戏的 x19 等寄存器，因此这里显式保存/恢复。
 __attribute__((naked)) static void pathTramp()
 {
     asm volatile(
@@ -66,16 +64,17 @@ __attribute__((naked)) static void pathTramp()
 
 void installVideoHook()
 {
-    (void)dlopen(TARGET, RTLD_NOW | RTLD_GLOBAL);
-    uintptr_t b = getModuleBase(TARGET);
-
     g_pathfn = &redirectPath;
 
-    const uintptr_t tgt = b + OFF_PATH_TRAMP;
+    const uintptr_t target = g_base + OFF_PATH_TRAMP;
 
-    uint8_t orig[16];
-    memcpy(orig, (const void *)tgt, 16);
-    g_cave = (void *)makeTrampCave(orig, tgt + 16);
+    // 原序言搬到洞穴，入口只覆写一次；之后始终按路径分流。
+    uint8_t originalInstructions[16];
+    memcpy(originalInstructions, reinterpret_cast<const void *>(target),
+           sizeof(originalInstructions));
+    g_cave = reinterpret_cast<void *>(makeTrampCave(originalInstructions, target + 16));
+    if (!g_cave)
+        return;
 
-    patchTrampEntry(tgt, (void *)&pathTramp);
+    patchTrampEntry(target, (void *)&pathTramp);
 }

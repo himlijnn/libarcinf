@@ -1,19 +1,35 @@
-# libarcinf
+<div align="center">
 
-为某个神秘项目提供技术支持。
+# libarcinf ![](https://img.shields.io/badge/C%2B%2B-f34b7d?style=flat-square&logo=cplusplus&logoColor=white) ![](https://img.shields.io/badge/Android-3ddc84?style=flat-square&logo=android&logoColor=white) ![](https://img.shields.io/badge/MIT-yellow?style=flat-square&logo=github&logoColor=white)
 
-**本人仅提供 libarcinf.so 和 libcocos2dcpp.so 技术支持，未参与该项目的其它内容。**
+### [English](README.md) | [简体中文](README_zh-CN.md)
 
----
+> Hook Arcaea for some advanced features
 
-### 功能
+</div>
 
-动态修改 libcocos2dcpp.so 以实现一些功能：
-- 离线可用全部角色技能
-- 角色觉醒状态可切换并本地存储
-- 重构资源访问路径
-- 修改部分界面元素
-- 自动游玩
+> [!WARNING]
+> This repository violates the Terms of Service of Lowiro Limited.
+
+> [!CAUTION]
+> This repository is for study and research purposes only. The author assumes no responsibility for any consequences caused by misuse.
+
+### Features
+
+Dynamically modify libcocos2dcpp with libarcinf. The latest version supports:
+
+- Auto play (toggleable in-game)
+- Do not save results while auto-playing
+- All character skills available offline
+- Toggle character awakening state offline, stored locally
+- Rework video resource paths
+- Modify the settings UI
 - ……
 
-出于安全性，仓库已移除注释。项目使用 Ninja 和 NDK 构建。若尝试在本地构建，可能要修改部分代码。
+### Quick Start
+
+The project is built with [Ninja](https://github.com/ninja-build/ninja) and NDK r30.
+
+> [!NOTE]
+> Before building locally, please edit CMakePresets.json and CMakeLists.txt.
+
