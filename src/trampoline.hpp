@@ -178,3 +178,11 @@ inline Trampoline replaceFunction(uintptr_t target, void *hookFn)
     tramp.ok = true;
     return tramp;
 }
+
+static void *vtableSlot(const void *obj, size_t byteOffset)
+{
+    void *const *vtable = *reinterpret_cast<void *const *const *>(obj);
+    if (!vtable)
+        return nullptr;
+    return *reinterpret_cast<void *const *>(reinterpret_cast<const char *>(vtable) + byteOffset);
+}

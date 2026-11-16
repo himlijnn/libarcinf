@@ -1,11 +1,12 @@
 // 自动游玩：按开关值装 / 撤代码补丁。
-//
-// 三类处理：
+
 //   1. 命中接管：MISS_NOTE / MISS_ARC_CHILD 两个站点换成 asm stub，由 stub 调游戏的计分函数；
 //   2. 漏键窗口：把 `add w8, w10, #imm` 里的等待毫秒数改小，让判定线附近就开始处理；
 //   3. 长条 / 蛇自动按住：onNoteScan 里遍历音符链表，到了时间就调原命中函数。
 //
 // 只读 settingsIsAutoPlay()，不写存档；关闭时把所有补丁还原成原指令。
+
+// autoPlay 的值在游戏初始化角色时读取，参考 skill.cpp
 
 #include <cstdint>
 #include <cstring>
@@ -247,16 +248,8 @@ static void applyWordSite(int index, int on, uintptr_t addr)
 
     if (on)
     {
-        if (site.skip)
-        {
-            const uint32_t branch = makeBranchWord(addr, g_base + site.skip);
-            if (branch)
-                word = branch;
-        }
-        else
-        {
-            word = (g_ap_orig[index] & ~site.selfMask) | (site.newWord & site.selfMask);
-        }
+
+        word = (g_ap_orig[index] & ~site.selfMask) | (site.newWord & site.selfMask);
     }
 
     patchWord(addr, word);

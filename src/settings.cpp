@@ -1,14 +1,10 @@
 // 设置界面接管 + 全工程唯一存档读写处。
-//
-// 三件事：
 //   1. 把设置界面里 "Stamina Notification" 那一行改造成 Auto Mode 开关：
 //      强行走"在线/可用"分支，并把取值 / 点击两个 lambda 整段替换成我们自己的实现。
 //   2. 把 "Invite Notification" 那一行从布局里摘掉（跳过它的 push_back）。
 //   3. 两处纯展示改写：About 页 Credits 里插入一段曲目信息、登录页隐掉注册/登录按钮。
 //
-//
-// 读档时机：绝不在 JNI_OnLoad 里读（那时 Cocos2dxHelper 还没 init，JNI 会空指针）
-// 统一走"用点懒加载"：skill.cpp 的四个角色 UI 入口 + 本文件的取值回调各自调一次 getPrefs::Xxx()。
+// autoPlay 的值在游戏初始化角色时读取，参考 skill.cpp
 
 #include <cstdint>
 #include <cstring>
@@ -291,14 +287,17 @@ static void installCreditsHook()
 // 建页函数接收 CSB 路径并返回根节点。路径里含 "LoggedOutNetwork" 时按名字取子节点并隐藏，
 // 全部走节点自身 vtable：+528 = getChildByName，+336 = setVisible，+1368 = setEnabled。
 // 只 setEnabled(false) 会变成"禁用但还可见"（贴图变缺失贴图），所以必须 setVisible。
+//
+//  这些是字节偏移（游戏内即 ldr x8,[x8,#0x150]），
+//   不能写成 vtable[336]（那会取到 2688 字节处的别的虚函数）
 
 typedef void *(*PFN_CreateUiNode)(void *);
 typedef void *(*PFN_GetChildByName)(void *, void *);
 typedef void (*PFN_SetBool)(void *, int);
 
-static constexpr size_t kVtGetChildByName = 528;
-static constexpr size_t kVtSetVisible = 336;
-static constexpr size_t kVtSetEnabled = 1368;
+static constexpr size_t kVtGetChildByName = 528; // 0x210
+static constexpr size_t kVtSetVisible = 336;     // 0x150
+static constexpr size_t kVtSetEnabled = 1368;    // 0x558
 
 static Trampoline g_createUiNode;
 
@@ -317,19 +316,29 @@ static const LoginHide kLoginHide[] = {
 
 static void hideLoginParts(void *root)
 {
-    const uintptr_t *vt = *reinterpret_cast<const uintptr_t *const *>(root);
-
     for (const LoginHide &target : kLoginHide)
     {
         ScopedGameStr name(target.name);
-        void *child = reinterpret_cast<PFN_GetChildByName>(vt[kVtGetChildByName])(root, name.get());
+        auto getChildByName =
+            reinterpret_cast<PFN_GetChildByName>(vtableSlot(root, kVtGetChildByName));
+        if (!getChildByName)
+            return;
+
+        void *child = getChildByName(root, name.get());
         if (!child)
             continue;
 
-        const uintptr_t *childVt = *reinterpret_cast<const uintptr_t *const *>(child);
         if (target.disable)
-            reinterpret_cast<PFN_SetBool>(childVt[kVtSetEnabled])(child, 0);
-        reinterpret_cast<PFN_SetBool>(childVt[kVtSetVisible])(child, 0);
+        {
+            auto setEnabled =
+                reinterpret_cast<PFN_SetBool>(vtableSlot(child, kVtSetEnabled));
+            if (setEnabled)
+                setEnabled(child, 0);
+        }
+
+        auto setVisible = reinterpret_cast<PFN_SetBool>(vtableSlot(child, kVtSetVisible));
+        if (setVisible)
+            setVisible(child, 0);
     }
 }
 
