@@ -1,7 +1,7 @@
+// 本局不保存：Auto 开启时，把结算写入点改成 not-saved。
+// 补丁是单条立即数指令，按开关在原指令与替换指令间切换。
+
 #include <cstdint>
-#include <cstring>
-#include <dlfcn.h>
-#include <sys/mman.h>
 
 #include "hook.hpp"
 #include "offset.hpp"
@@ -9,42 +9,26 @@
 
 #if enableSecurityHook
 
-static uintptr_t g_sec_base = 0;
-static uint32_t g_sec_orig = 0;
-static int g_sec_applied = 0;
+static uint32_t g_originalInstruction = 0;
+static bool g_patchApplied = false;
 
-static uint32_t secRead(uintptr_t addr)
-{
-    uint32_t w = 0;
-    memcpy(&w, reinterpret_cast<const void *>(addr), sizeof(w));
-    return w;
-}
-
-static void secWrite(uintptr_t addr, uint32_t w)
-{
-    const long ps = trampPageSize();
-    const uintptr_t page = addr & ~(static_cast<uintptr_t>(ps) - 1);
-    mprotect(reinterpret_cast<void *>(page), ps, PROT_READ | PROT_WRITE | PROT_EXEC);
-    memcpy(reinterpret_cast<void *>(addr), &w, sizeof(w));
-    __builtin___clear_cache(reinterpret_cast<char *>(page), reinterpret_cast<char *>(page + ps));
-    mprotect(reinterpret_cast<void *>(page), ps, PROT_READ | PROT_EXEC);
-}
+// MOV W9, #1
+static constexpr uint32_t kForceNotSavedInstruction = 0x52800029;
 
 void securityApply(int on)
 {
-    const int want = on ? 1 : 0;
-    if (want == g_sec_applied)
+    const bool enable = on != 0;
+    if (enable == g_patchApplied)
         return;
-    secWrite(g_sec_base + OFF_SEC_NOTSAVED_SET, want ? 0x52800029 : g_sec_orig);
-    g_sec_applied = want;
+
+    patchWord(g_base + OFF_SEC_NOTSAVED_SET,
+              enable ? kForceNotSavedInstruction : g_originalInstruction);
+    g_patchApplied = enable;
 }
 
 void installSecurityHook()
 {
-    (void)dlopen(TARGET, RTLD_NOW | RTLD_GLOBAL);
-    const uintptr_t base = getModuleBase(TARGET);
-    g_sec_base = base;
-    g_sec_orig = secRead(base + OFF_SEC_NOTSAVED_SET);
+    g_originalInstruction = readWord(g_base + OFF_SEC_NOTSAVED_SET);
     securityApply(settingsIsAutoPlay());
 }
 

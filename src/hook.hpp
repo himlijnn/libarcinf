@@ -1,10 +1,14 @@
 #pragma once
 
+extern uintptr_t g_base;
+
 void installSkillHook();
 void installVideoHook();
 void installSettingsHook();
 void installAutoplayHook();
 void installSecurityHook();
+
+// 存档读写由 settings.cpp 实现，其它模块只读内存
 
 namespace getPrefs
 {

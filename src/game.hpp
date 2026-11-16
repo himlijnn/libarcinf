@@ -1,5 +1,12 @@
-
 #pragma once
+
+// 游戏侧 std::string 与 UserDefault 的最小封装。
+//
+// 为什么不能直接用自己的 std::string：
+//   * 游戏用的是 libc++（c++_static），与宿主 App 的 STL 实例不是同一份；
+//   * 布局是 libc++ 的 24 字节形态：byte0 bit0 = 1 表示长串（堆上），否则短串
+//     （size = byte0 >> 1，数据紧随其后，最多 22 字节）。
+// 因此构造一律走游戏自己的 string ctor，析构走游戏的 operator delete。
 
 #include <cstddef>
 #include <cstdint>
@@ -8,6 +15,8 @@
 
 #include "offset.hpp"
 
+extern uintptr_t g_base;
+
 struct GameStr
 {
     uint64_t hdr;
@@ -15,34 +24,35 @@ struct GameStr
     uint64_t dataPtr;
 };
 
-inline const char *gameStrText(const GameStr *s)
-{
-    return (s->hdr & 1) ? reinterpret_cast<const char *>(s->dataPtr)
-                        : reinterpret_cast<const char *>(s) + 1;
-}
-
 inline bool gameStrIsLong(const GameStr *s)
 {
     return (s->hdr & 1) != 0;
 }
 
+inline const char *gameStrText(const GameStr *s)
+{
+    return gameStrIsLong(s) ? reinterpret_cast<const char *>(s->dataPtr)
+                            : reinterpret_cast<const char *>(s) + 1;
+}
+
+// 游戏侧的 operator delete（_ZdlPv），只在需要释放长串时延迟解析一次。
 inline void gameOperatorDelete(void *p)
 {
     static void (*fn)(void *) = nullptr;
-    static bool lookedUp = false;
-    if (!lookedUp)
+    static bool resolved = false;
+    if (!resolved)
     {
-        lookedUp = true;
+        resolved = true;
         fn = reinterpret_cast<void (*)(void *)>(dlsym(RTLD_DEFAULT, "_ZdlPv"));
     }
     if (fn && p)
         fn(p);
 }
 
-inline void gameStrInit(uintptr_t base, GameStr *s, const char *v)
+inline void gameStrInit(GameStr *s, const char *text)
 {
     typedef void (*PFN_StrCtor)(void *, const char *);
-    ((PFN_StrCtor)(base + OFF_StringCtor))(s, v ? v : "");
+    reinterpret_cast<PFN_StrCtor>(g_base + OFF_StringCtor)(s, text ? text : "");
 }
 
 inline void gameStrFree(GameStr *s)
@@ -51,34 +61,77 @@ inline void gameStrFree(GameStr *s)
         gameOperatorDelete(reinterpret_cast<void *>(s->dataPtr));
 }
 
-inline int gameGetBool(uintptr_t base, const char *key, int def)
+// RAII 版本，避免每个调用点都手写 init / free 配对。
+class ScopedGameStr
+{
+public:
+    explicit ScopedGameStr(const char *text)
+    {
+        gameStrInit(&str_, text);
+    }
+
+    ~ScopedGameStr()
+    {
+        gameStrFree(&str_);
+    }
+
+    ScopedGameStr(const ScopedGameStr &) = delete;
+    ScopedGameStr &operator=(const ScopedGameStr &) = delete;
+
+    GameStr *get() { return &str_; }
+    const GameStr *get() const { return &str_; }
+    const char *text() const { return gameStrText(&str_); }
+
+private:
+    GameStr str_ = {};
+};
+
+// UserDefault：内部转成 SharedPreferences，this 参数游戏自己不用，传 nullptr 安全。
+
+inline int gameGetBool(const char *key, int def)
 {
     typedef int (*PFN)(void *, const char *, int);
-    return ((PFN)(base + OFF_UserDefaultGetBool))(nullptr, key, def) ? 1 : 0;
+    return reinterpret_cast<PFN>(g_base + OFF_UserDefaultGetBool)(nullptr, key, def) ? 1 : 0;
 }
 
-inline void gameSetBool(uintptr_t base, const char *key, int v)
+inline void gameSetBool(const char *key, int value)
 {
     typedef void (*PFN)(void *, const char *, int);
-    ((PFN)(base + OFF_UserDefaultSetBool))(nullptr, key, v ? 1 : 0);
+    reinterpret_cast<PFN>(g_base + OFF_UserDefaultSetBool)(nullptr, key, value ? 1 : 0);
 }
 
-inline void gameGetString(uintptr_t base, const char *key, const char *def, char *out, size_t sz)
+// 读字符串；返回值复制进 out，调用方不持有游戏侧内存。
+inline void gameGetString(const char *key, const char *def, char *out, size_t outSize)
 {
-    typedef GameStr (*PFN_Get)(void *, const char *, void *);
-    GameStr defStr = {};
-    gameStrInit(base, &defStr, def ? def : "");
-    GameStr s = ((PFN_Get)(base + OFF_UserDefaultGetString))(nullptr, key, &defStr);
-    snprintf(out, sz, "%s", gameStrText(&s));
-    gameStrFree(&s);
-    gameStrFree(&defStr);
+    typedef GameStr (*PFN)(void *, const char *, GameStr *);
+
+    if (!out || outSize == 0)
+        return;
+    out[0] = 0;
+
+    ScopedGameStr defStr(def);
+    GameStr value = reinterpret_cast<PFN>(g_base + OFF_UserDefaultGetString)(
+        nullptr, key, defStr.get());
+
+    // 拷贝到调用方缓冲；游戏返回的串可能是长串（堆上），必须还给游戏释放。
+    const char *text = gameStrText(&value);
+    const size_t len = text ? __builtin_strlen(text) : 0;
+    if (len >= outSize)
+    {
+        __builtin_memcpy(out, text, outSize - 1);
+        out[outSize - 1] = 0;
+    }
+    else
+    {
+        __builtin_memcpy(out, text, len);
+        out[len] = 0;
+    }
+    gameStrFree(&value);
 }
 
-inline void gameSetString(uintptr_t base, const char *key, const char *val)
+inline void gameSetString(const char *key, const char *value)
 {
-    typedef void (*PFN_Set)(void *, const char *, void *);
-    GameStr v = {};
-    gameStrInit(base, &v, val ? val : "");
-    ((PFN_Set)(base + OFF_UserDefaultSetString))(nullptr, key, &v);
-    gameStrFree(&v);
+    typedef void (*PFN)(void *, const char *, GameStr *);
+    ScopedGameStr str(value);
+    reinterpret_cast<PFN>(g_base + OFF_UserDefaultSetString)(nullptr, key, str.get());
 }

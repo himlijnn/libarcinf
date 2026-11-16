@@ -1,36 +1,32 @@
+// 设置界面接管 + 全工程唯一存档读写处。
+//
+// 三件事：
+//   1. 把设置界面里 "Stamina Notification" 那一行改造成 Auto Mode 开关：
+//      强行走"在线/可用"分支，并把取值 / 点击两个 lambda 整段替换成我们自己的实现。
+//   2. 把 "Invite Notification" 那一行从布局里摘掉（跳过它的 push_back）。
+//   3. 两处纯展示改写：About 页 Credits 里插入一段曲目信息、登录页隐掉注册/登录按钮。
+//
+//
+// 读档时机：绝不在 JNI_OnLoad 里读（那时 Cocos2dxHelper 还没 init，JNI 会空指针）
+// 统一走"用点懒加载"：skill.cpp 的四个角色 UI 入口 + 本文件的取值回调各自调一次 getPrefs::Xxx()。
 
 #include <cstdint>
-#include <cstdio>
 #include <cstring>
-#include <dlfcn.h>
-#include <sys/mman.h>
 
 #include "game.hpp"
 #include "hook.hpp"
 #include "offset.hpp"
 #include "trampoline.hpp"
 
-static uintptr_t g_base = 0;
-
 static const char *PREF_KEY_AUTOPLAY = "autoPlay";
 static const char *PREF_KEY_AWAKENED = "awakened";
 
 static int g_autoPlay = 0;
 static uint8_t g_awaken[g_char_num] = {0};
-static bool g_autoPlay_loaded = false;
-static bool g_awaken_loaded = false;
+static bool g_autoPlayLoaded = false;
+static bool g_awakenLoaded = false;
 
-static void applyAll(int v)
-{
-#if enableAutoplayHook
-    autoplayApply(v);
-#if enableSecurityHook
-    securityApply(v);
-#endif
-#else
-    (void)v;
-#endif
-}
+// 取值 / 归档
 
 int settingsIsAutoPlay(void)
 {
@@ -40,6 +36,19 @@ int settingsIsAutoPlay(void)
 int settingsIsAwakened(int id)
 {
     return (id >= 0 && id < g_char_num) ? g_awaken[id] : 0;
+}
+
+// 值变化后推给下游模块。两个 apply 都是幂等的，值没变直接返回。
+static void applyToggle(int on)
+{
+#if enableAutoplayHook
+    autoplayApply(on);
+#if enableSecurityHook
+    securityApply(on);
+#endif
+#else
+    (void)on;
+#endif
 }
 
 void settingsSetAwaken(int id, int on)
@@ -52,40 +61,47 @@ void settingsSetAwaken(int id, int on)
 
 namespace getPrefs
 {
+    // 非数字字符一律当分隔符；越界 id 直接丢弃（写入时也只输出 [0, g_char_num)）。
     void Awakened()
     {
-        if (g_awaken_loaded)
+        if (g_awakenLoaded)
             return;
-        g_awaken_loaded = true;
+        g_awakenLoaded = true;
 
         char buf[512];
-        gameGetString(g_base, PREF_KEY_AWAKENED, "", buf, sizeof(buf));
+        gameGetString(PREF_KEY_AWAKENED, "", buf, sizeof(buf));
         memset(g_awaken, 0, sizeof(g_awaken));
+
         int id = -1;
-        for (const char *p = buf;; p++)
+        for (const char *ch = buf;; ++ch)
         {
-            const char ch = *p;
-            if (ch >= '0' && ch <= '9')
+            if (*ch >= '0' && *ch <= '9')
             {
-                if (id < g_char_num)
-                    id = (id < 0 ? 0 : id) * 10 + (ch - '0');
+                // 先按 int 累加，超出范围的数字串走到分隔符时自然被丢掉。
+                id = (id < 0 ? 0 : id) * 10 + (*ch - '0');
+                if (id >= g_char_num)
+                    id = g_char_num;
                 continue;
             }
+
             if (id >= 0 && id < g_char_num)
                 g_awaken[id] = 1;
             id = -1;
-            if (!ch)
+
+            if (!*ch)
                 break;
         }
     }
+
     void AutoPlay()
     {
-        if (g_autoPlay_loaded)
+        if (g_autoPlayLoaded)
             return;
-        g_autoPlay_loaded = true;
-        g_autoPlay = gameGetBool(g_base, PREF_KEY_AUTOPLAY, 0) ? 1 : 0;
+        g_autoPlayLoaded = true;
+
+        g_autoPlay = gameGetBool(PREF_KEY_AUTOPLAY, 0);
 #if enableAutoplayHook
-        applyAll(g_autoPlay);
+        applyToggle(g_autoPlay);
 #endif
     }
 }
@@ -94,30 +110,46 @@ namespace setPrefs
 {
     void Awakened()
     {
-        char val[512];
-        val[0] = 0;
+        char value[512];
+        value[0] = 0;
         size_t len = 0;
-        for (int i = 0; i < g_char_num; i++)
+
+        for (int id = 0; id < g_char_num; id++)
         {
-            if (!g_awaken[i])
+            if (!g_awaken[id])
                 continue;
-            const int m = snprintf(val + len, sizeof(val) - len, "%s%d", len ? "," : "", i);
-            if (m <= 0 || (size_t)m >= sizeof(val) - len)
+
+            const int written = snprintf(value + len, sizeof(value) - len,
+                                         "%s%d", len ? "," : "", id);
+            if (written <= 0 || static_cast<size_t>(written) >= sizeof(value) - len)
                 break;
-            len += (size_t)m;
+            len += static_cast<size_t>(written);
         }
-        gameSetString(g_base, PREF_KEY_AWAKENED, val);
+
+        gameSetString(PREF_KEY_AWAKENED, value);
     }
 
     void AutoPlay()
     {
-        gameSetBool(g_base, PREF_KEY_AUTOPLAY, g_autoPlay);
+        gameSetBool(PREF_KEY_AUTOPLAY, g_autoPlay);
     }
 }
+
+// 设置界面的那一行
+
+// 这一行在 createMainContentBase 里被建两遍，唯一分叉是两道"在线数据可用吗"的门：
+//   tbz w0,#0,<离线块>   -> 不满足则走离线变体（只有 "Unavailable Offline"，点不动）
+// 让 Auto 能开能关，只能走在线变体，所以两条 tbz 一律 NOP。
+// 只 NOP 不够：在线变体的取值 lambda 会解引用账号配置，未登录时是 NULL
+//   所以同时把取值 / 点击两个 lambda 整段替换成不碰游戏状态的实现。
+//
+// 取值 lambda 序言含 adrp（PC 相对），不能蹦床，只能 replaceFunction 整段替换。
+// 点击 lambda 原实现会弹对话框，替换后只做：翻转值 -> 落盘 -> 推给下游。
 
 int onStaminaGet(void *callable)
 {
     (void)callable;
+    // 读档放在这里：界面正在显示这一行，说明 Helper 已经就绪。
     getPrefs::AutoPlay();
     return g_autoPlay;
 }
@@ -125,52 +157,93 @@ int onStaminaGet(void *callable)
 int onStaminaTap(void *callable)
 {
     (void)callable;
+
     g_autoPlay = g_autoPlay ? 0 : 1;
-    applyAll(g_autoPlay);
+    applyToggle(g_autoPlay);
     setPrefs::AutoPlay();
+
+    // 不要在这里刷新这一行：游戏刷新 = 重建节点，会导致文字叠层。
+    // 行文字的更新只发生在重建整个设置界面时。
     return g_autoPlay;
 }
 
-static const uint32_t g_set_tbz_sites[] = {OFF_SET_AVAIL_BYTE_TBZ, OFF_SET_AVAIL_VIRT_TBZ};
-static const int g_set_site_count =
-    static_cast<int>(sizeof(g_set_tbz_sites) / sizeof(g_set_tbz_sites[0]));
-
-static void patchWord(uintptr_t addr, uint32_t w)
+// 两条门的原始字：tbz w0,#0,<离线块>。校验结构而不是整字比对，
+// 版本漂移时（比如换成了 tbnz/别的寄存器）能直接暴露。
+static bool isAvailabilityGate(uint32_t word, uintptr_t site, uintptr_t offlineBlock)
 {
-    const long ps = trampPageSize();
-    const uintptr_t page = addr & ~(static_cast<uintptr_t>(ps) - 1);
-    mprotect(reinterpret_cast<void *>(page), ps, PROT_READ | PROT_WRITE | PROT_EXEC);
-    memcpy(reinterpret_cast<void *>(addr), &w, sizeof(w));
-    __builtin___clear_cache(reinterpret_cast<char *>(page), reinterpret_cast<char *>(page + ps));
-    mprotect(reinterpret_cast<void *>(page), ps, PROT_READ | PROT_EXEC);
+    constexpr uint32_t kTbzW0Bit0 = 0x36000000;
+    constexpr uint32_t kMask = 0xFF00001F; // 只关心 opcode + Rt
+
+    if ((word & kMask) != kTbzW0Bit0)
+        return false;
+    if (((word >> 19) & 0x3F) != 0) // bit number == 0
+        return false;
+
+    int64_t imm = static_cast<int64_t>((word >> 5) & 0x3FFF);
+    if (imm & 0x2000)
+        imm -= 0x4000;
+
+    return site + static_cast<uintptr_t>(imm * 4) == offlineBlock;
 }
 
+static void forceOnlineVariantOfOurRow()
+{
 #if enableAutoplayHook
-static void disableOfflineBranchForOurRow()
-{
-    for (int i = 0; i < g_set_site_count; i++)
-        patchWord(g_base + g_set_tbz_sites[i], 0xD503201F);
-}
-#endif
+    constexpr uint32_t kNop = 0xD503201F;
 
-static void patchBranch(uintptr_t from, uintptr_t to)
-{
-    patchWord(from, makeBranchWord(from, to));
+    struct Gate
+    {
+        uintptr_t offset;
+        uintptr_t offlineBlock;
+    };
+    // 两条门都跳到同一个离线块。
+    static const Gate gates[] = {
+        {OFF_SET_AVAIL_BYTE_TBZ, OFF_SET_ROW_OFFLINE_BLOCK},
+        {OFF_SET_AVAIL_VIRT_TBZ, OFF_SET_ROW_OFFLINE_BLOCK},
+    };
+
+    for (const Gate &gate : gates)
+    {
+        const uintptr_t site = g_base + gate.offset;
+        const uintptr_t block = g_base + gate.offlineBlock;
+        if (!isAvailabilityGate(readWord(site), site, block))
+            continue;
+        patchWord(site, kNop);
+    }
+#endif
 }
+
+// 隐藏 "Invite Notification"
+//
+// 该段每行建完后有 3 条指令把 widget 塞进栈上的向量：
+//   add x0, sp, #0x4b0 ; mov x1, x21 ; bl <vector::push_back>
+// 把这一组整体跳掉，行仍会被构造（因此后面逐行 release() 照常），只是不进容器
+// 不显示，也不留空位。比"整行不构造"少两个补丁点，且没有残留指针进容器的风险。
+
+static const uint32_t kInviteAddSp = 0x9112C3E0;  // add x0, sp, #0x4b0
+static const uint32_t kInviteMovX21 = 0xAA1503E1; // mov x1, x21
 
 static void hideInviteRow()
 {
-    patchBranch(g_base + OFF_SET_INVITE_PUSH, g_base + OFF_SET_INVITE_PUSH + 12);
+    const uintptr_t site = g_base + OFF_SET_INVITE_PUSH;
+    if (readWord(site) != kInviteAddSp)
+        return;
+    if (readWord(site + 4) != kInviteMovX21)
+        return;
+
+    // 跳过 3 条指令 = 12 字节。
+    (void)patchBranch(site, site + 12);
 }
+
+// Credits：插入 Particle Arts
+
+// 整页由一个函数一次建完，每行调用：
+//   creditsLine(ctx, &std::string text, head, x3, font, scale)
+// 遇到我们的锚点行（"Scarlet Cage"，head=0、x3=0、字号 30）时先插自己的块再转发。
 
 typedef void (*PFN_CreditLine)(void *, void *, int, int, int, float);
 
-static Trampoline g_credits_line;
-
-static bool isCreditStr(const void *str, const char *want)
-{
-    return strcmp(gameStrText(static_cast<const GameStr *>(str)), want) == 0;
-}
+static Trampoline g_creditsLine;
 
 struct CreditLine
 {
@@ -191,33 +264,43 @@ static const CreditLine kParticleArts[] = {
 
 static void addCreditLine(void *ctx, const CreditLine &line)
 {
-    GameStr s = {};
-    gameStrInit(g_base, &s, line.text);
-    ((PFN_CreditLine)g_credits_line.cave)(ctx, &s, line.head, 0, line.font, line.scale);
-    gameStrFree(&s);
+    ScopedGameStr text(line.text);
+    reinterpret_cast<PFN_CreditLine>(g_creditsLine.cave)(
+        ctx, text.get(), line.head, 0, line.font, line.scale);
 }
 
-static void onCreditsLine(void *ctx, void *str, int head, int a4, int font, float scale)
+static void onCreditsLine(void *ctx, void *str, int head, int x3, int font, float scale)
 {
-    if (head == 0 && a4 == 0 && font == 30 && isCreditStr(str, "\"Scarlet Cage\""))
+    const bool isAnchor = head == 0 && x3 == 0 && font == 30 && str &&
+                          strcmp(gameStrText(static_cast<const GameStr *>(str)),
+                                 "\"Scarlet Cage\"") == 0;
+    if (isAnchor)
         for (const CreditLine &line : kParticleArts)
             addCreditLine(ctx, line);
 
-    ((PFN_CreditLine)g_credits_line.cave)(ctx, str, head, a4, font, scale);
+    reinterpret_cast<PFN_CreditLine>(g_creditsLine.cave)(ctx, str, head, x3, font, scale);
 }
 
-static void creditsHook(uintptr_t base)
+static void installCreditsHook()
 {
-    if (!base)
-        return;
-    g_credits_line = installTrampoline(base + OFF_CREDITS_LINE, (void *)&onCreditsLine);
+    g_creditsLine = installTrampoline(g_base + OFF_CREDITS_LINE, (void *)&onCreditsLine);
 }
+
+// 登录页移除 登录 / 注册按钮
+
+// 建页函数接收 CSB 路径并返回根节点。路径里含 "LoggedOutNetwork" 时按名字取子节点并隐藏，
+// 全部走节点自身 vtable：+528 = getChildByName，+336 = setVisible，+1368 = setEnabled。
+// 只 setEnabled(false) 会变成"禁用但还可见"（贴图变缺失贴图），所以必须 setVisible。
 
 typedef void *(*PFN_CreateUiNode)(void *);
 typedef void *(*PFN_GetChildByName)(void *, void *);
 typedef void (*PFN_SetBool)(void *, int);
 
-static Trampoline g_login_node;
+static constexpr size_t kVtGetChildByName = 528;
+static constexpr size_t kVtSetVisible = 336;
+static constexpr size_t kVtSetEnabled = 1368;
+
+static Trampoline g_createUiNode;
 
 struct LoginHide
 {
@@ -228,60 +311,52 @@ struct LoginHide
 static const LoginHide kLoginHide[] = {
     {"login_button", true},
     {"register_button", true},
-    // {"login_hint", false},
+    // {"login_hint", false},          // 文字，只 setVisible，已用其他方式解决
     // {"login_hint_warning", false},
 };
 
 static void hideLoginParts(void *root)
 {
-    const uintptr_t vt = *static_cast<uintptr_t *>(root);
+    const uintptr_t *vt = *reinterpret_cast<const uintptr_t *const *>(root);
 
     for (const LoginHide &target : kLoginHide)
     {
-        GameStr key = {};
-        gameStrInit(g_base, &key, target.name);
-        void *child = reinterpret_cast<PFN_GetChildByName>(
-            *reinterpret_cast<uintptr_t *>(vt + 528))(root, &key);
-        gameStrFree(&key);
-
+        ScopedGameStr name(target.name);
+        void *child = reinterpret_cast<PFN_GetChildByName>(vt[kVtGetChildByName])(root, name.get());
         if (!child)
             continue;
 
-        const uintptr_t cvt = *static_cast<uintptr_t *>(child);
+        const uintptr_t *childVt = *reinterpret_cast<const uintptr_t *const *>(child);
         if (target.disable)
-            reinterpret_cast<PFN_SetBool>(*reinterpret_cast<uintptr_t *>(cvt + 1368))(child, 0);
-        reinterpret_cast<PFN_SetBool>(*reinterpret_cast<uintptr_t *>(cvt + 336))(child, 0);
+            reinterpret_cast<PFN_SetBool>(childVt[kVtSetEnabled])(child, 0);
+        reinterpret_cast<PFN_SetBool>(childVt[kVtSetVisible])(child, 0);
     }
 }
 
-static void *onCreateUiNode(void *str)
+static void *onCreateUiNode(void *path)
 {
-    void *node = ((PFN_CreateUiNode)g_login_node.cave)(str);
+    void *node = reinterpret_cast<PFN_CreateUiNode>(g_createUiNode.cave)(path);
 
-    if (node && str && strstr(gameStrText(static_cast<const GameStr *>(str)), "LoggedOutNetwork"))
+    if (node && path && strstr(gameStrText(static_cast<const GameStr *>(path)), "LoggedOutNetwork"))
         hideLoginParts(node);
 
     return node;
 }
 
-static void loginHook(uintptr_t base)
+static void installLoginHook()
 {
-    
-    g_login_node = installTrampoline(base + OFF_CREATE_UI_NODE, (void *)&onCreateUiNode);
+    g_createUiNode = installTrampoline(g_base + OFF_CREATE_UI_NODE, (void *)&onCreateUiNode);
 }
 
 void installSettingsHook()
 {
-    (void)dlopen(TARGET, RTLD_NOW | RTLD_GLOBAL);
-    const uintptr_t base = getModuleBase(TARGET);
-    g_base = base;
-
 #if enableAutoplayHook
-    disableOfflineBranchForOurRow();
-    (void)replaceFunction(base + OFF_SET_GET_CB, (void *)&onStaminaGet);
-    (void)replaceFunction(base + OFF_SET_STAMINA_TAP, (void *)&onStaminaTap);
+    forceOnlineVariantOfOurRow();
+    (void)replaceFunction(g_base + OFF_SET_GET_CB, (void *)&onStaminaGet);
+    (void)replaceFunction(g_base + OFF_SET_STAMINA_TAP, (void *)&onStaminaTap);
 #endif
+
     hideInviteRow();
-    creditsHook(base);
-    loginHook(base);
+    installCreditsHook();
+    installLoginHook();
 }
