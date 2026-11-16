@@ -172,7 +172,7 @@ static const CharInfo g_char_info[] = {
     {68, false, "skill_nami_twilight", ""},
     {69, false, "skill_ilith_ivy", ""},
     {70, false, "skill_hikari_vanessa", ""},
-    {71, true, "", "skill_maya_uncap"},
+    {71, true, "", "skill_maya_uncap"}, // skill_maya 无实际功能，故不填
     {72, false, "skill_intruder", ""},
     {73, true, "skill_luin", "skill_luin_uncap"},
     {74, false, "", ""},

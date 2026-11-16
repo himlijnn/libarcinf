@@ -16,15 +16,17 @@
 
 ### Features
 
-Dynamically modify libcocos2dcpp with libarcinf. The latest version supports:
+libarcinf.so dynamically modifies libcocos2dcpp.so and supports:
 
 - Auto play (toggleable in-game)
 - Do not save results while auto-playing
 - All character skills available offline
-- Toggle character awakening state offline, stored locally
+- Toggle character awakening state offline
 - Rework video resource paths
 - Modify the settings UI
 - ……
+
+The repository only keeps offsets for the latest game version.
 
 ### Quick Start
 
