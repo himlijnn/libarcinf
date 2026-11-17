@@ -334,7 +334,7 @@ static void initFakeUserSlot()
         g_fake_user.name[1 + i] = (uint8_t)CHAR101USERNAME[i];
 }
 
-__attribute__((used)) static uintptr_t g_userslot1_cont __asm__("g_userslot1_cont") = 0;
+__attribute__((used)) static uintptr_t g_userslot1_add __asm__("g_userslot1_add") = 0;
 
 __attribute__((naked)) static void onUserSlot1(void)
 {
@@ -360,8 +360,8 @@ __attribute__((naked)) static void onUserSlot1(void)
         "sturb w8, [x29, #-0x1c]\n"
         "ldr  w8, [x0, #0xac]\n"
         "stur w10, [x29, #-0x18]\n"
-        "adrp x16, g_userslot1_cont\n"
-        "ldr  x16, [x16, #:lo12:g_userslot1_cont]\n"
+        "adrp x16, g_userslot1_add\n"
+        "ldr  x16, [x16, #:lo12:g_userslot1_add]\n"
         "br   x16");
 }
 
@@ -384,6 +384,6 @@ void installSkillHook()
     g_modify = installTrampoline(g_base + OFF_ModifyCharState, (void *)&onModifyCharState);
     g_pborder = installTrampoline(g_base + OFF_SetCharBorder, (void *)&onSetCharBorder);
     g_barfill = installTrampoline(g_base + OFF_SetBarFill, (void *)&onSetBarFill);
-    g_userslot1_cont = g_base + OFF_CHAR101USERNAME_CONT;
-    g_userslot1 = installTrampoline(g_base + OFF_CHAR101USERNAME_READ, (void *)&onUserSlot1);
+    g_userslot1_add = g_base + OFF_CHAR101USERNAME_ADD;
+    g_userslot1 = installTrampoline(g_base + (OFF_CHAR101USERNAME_ADD - 0x10), (void *)&onUserSlot1);
 }
