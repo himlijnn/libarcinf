@@ -1,4 +1,36 @@
-// 不要轻易重构 skill.cpp！可能会出现难以调试的错误
+/*
+ * 不要轻易重构 skill.cpp！可能会出现难以调试的错误
+ */
+
+//
+// 7.3.0c 相对上一个版本 7.1.0c，角色卡 UI 对象内部节点指针整体 +0x20，角色对象没有变化
+//
+// ---- 角色对象 obj ---- *(int64_t *)(a1 + 0x310)
+//   +0x00C  int    char_id
+//   +0x0A8  int    类型 v5：0 = 普通，1 = 觉醒显示组，2 = 觉醒判定组?（maya 71 = 2）
+//   +0x0C0  int    等级（20 / 30）
+//   +0x0C9  u8     当前显示形态（0 = 未觉醒 / 1 = 觉醒）
+//   +0x0CA  u8     !toggle，觉醒图标状态（1 = awaken-icon-closed）
+//   +0x0D0  ptr    CharacterAbility（技能对象，觉醒切换后要重建）
+//   +0x118  u8     觉醒判定标志（AwakenCheck 0xBB1138 = ldr x8,[x0,#0x118] / cset ne）
+//                  注意游戏按 64 位读，我们只写最低字节（与旧版一致，实测可用）
+//   +0x120  u8     setupSkill 内部用的另一个标志位，与本模块无关，勿动
+//   +0x2D0  ptr    SpecialScene（Finale / Testify 异象，null 会崩渲染链）
+//
+// ---- 角色卡 UI 对象 a1 ----
+//                        7.1.0c   7.3.0c  含义
+//   +0x310                0x310    0x310   角色对象指针
+//   +0x3E0                0x3E0    0x3E0   glow 底图（glow-ez.png / glow-normal.png）
+//   lock-icon(sprite)     0x4D8 →  0x4F8   lock-icon
+//   锁定按钮附属          0x4E0 →  0x500   setVisible
+//   锁定按钮本体          0x4E8 →  0x508   setVisible + setEnabled
+//   awaken-icon(sprite) 0x4F0 →  0x510   awaken-icon-closed / awaken-icon
+//   觉醒状态文本          0x4F8 →  0x518   "PRE-AWAKENING" / "AWAKENED"
+//   觉醒按钮本体          0x500 →  0x520   setVisible + setEnabled（点击入口）
+//   技能描述 Label       0x508 →  0x528   SetLabelText 的目标
+//   等级突破「唤醒」按钮   0x538 →  0x558   勿强制显示，会在 UI 外显示并拦截触摸
+//
+//
 
 #include <dlfcn.h>
 #include <cstdint>
@@ -124,27 +156,27 @@ static void forceAwakenUi(int64_t a1, int64_t obj, int cid)
 {
     if (!obj || cid < 0 || cid >= g_char_num || !hasUncap(cid))
         return;
-    setNodeVisible(a1 + 1264, true);
-    setNodeVisible(a1 + 1272, true);
-    setNodeVisible(a1 + 1280, true);
-    setWidgetEnabled(a1 + 1280, true);
+    setNodeVisible(a1 + 1296, true);
+    setNodeVisible(a1 + 1304, true);
+    setNodeVisible(a1 + 1312, true);
+    setWidgetEnabled(a1 + 1312, true);
 }
 
 static void force72SealButton(int64_t a1, int64_t obj, int cid)
 {
     if (!obj || cid != 72)
         return;
-    setNodeVisible(a1 + 1256, true);
-    setWidgetEnabled(a1 + 1256, true);
-    setNodeVisible(a1 + 1240, true);
-    setNodeVisible(a1 + 1248, true);
+    setNodeVisible(a1 + 1288, true);
+    setWidgetEnabled(a1 + 1288, true);
+    setNodeVisible(a1 + 1272, true);
+    setNodeVisible(a1 + 1280, true);
 }
 
 static void force71SkillMayaDesc(int64_t a1, int64_t obj, int cid)
 {
     if (!(obj && cid == 71 && !settingsIsAwakened(71) && !isCharSealed(g_base)))
         return;
-    int64_t lbl = a1 ? *(int64_t *)(a1 + 1288) : 0;
+    int64_t lbl = a1 ? *(int64_t *)(a1 + 1320) : 0;
     if (!lbl)
         return;
     typedef GameStr (*PFN_Localize)(const char *);
