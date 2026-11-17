@@ -17,6 +17,11 @@
 
 #define OFF_PATH_TRAMP 0xDB4440
 
+/* 明日方舟 intro */
+
+#define OFF_BuildDiskPath 0x103DB78
+#define OFF_FileUtilsInstance 0xF9AD6C // FileUtils::getInstance()
+
 /* 角色与技能 */
 
 #define OFF_StringCtor 0x171F9E4
@@ -55,7 +60,7 @@
 
 // Stamina Notification 分支
 #define OFF_SET_AVAIL_BYTE_TBZ 0x159C844
-#define OFF_SET_AVAIL_VIRT_TBZ 0x159C958
+#define OFF_SET_AVAIL_VIRT_TBZ 0x159C850
 
 // Unavailable Offline 分支
 #define OFF_SET_ROW_OFFLINE_BLOCK 0x159C958
