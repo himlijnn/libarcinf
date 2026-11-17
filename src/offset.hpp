@@ -1,6 +1,6 @@
 #pragma once
 
-// 7.1.0c
+// 7.3.0c
 
 /* 编译选项 */
 
@@ -15,80 +15,80 @@
 
 /* 基础功能 */
 
-#define OFF_PATH_TRAMP 0x10CD508
-#define OFF_StringCtor 0x104BAAC
-#define OFF_FileNameCtor 0xC7D734
-#define OFF_RefAdd 0xEA0FE8
+#define OFF_PATH_TRAMP 0xDB4440
 
 /* 角色与技能 */
 
-#define OFF_Init 0x19FAE38
-#define OFF_OnlineSkill 0xC6B6DC
-#define OFF_SealCtx 0x1BF0B58
+#define OFF_StringCtor 0x171F9E4
+#define OFF_FileNameCtor 0x108DD7C
+#define OFF_RefAdd 0x13B75B0
 
-#define OFF_RenderCharUI 0x147FCC8
-#define OFF_AwakenCheck 0x1412140
-#define OFF_RefreshCharState 0xE413B0
-#define OFF_ModifyCharState 0x11225F4
+#define OFF_Init 0x960EE0
+#define OFF_OnlineSkill 0xF8CD64
+#define OFF_SealCtx 0x1C81AB8
 
-#define OFF_AWAKEN_CALL 0x1122658
-#define OFF_AWAKEN_CALLER 0xA09C94
+#define OFF_RenderCharUI 0x18079B4
+#define OFF_AwakenCheck 0xBB1138
+#define OFF_RefreshCharState 0x184D740
+#define OFF_ModifyCharState 0x14121D8
 
-#define OFF_SetCharBorder 0xF43A9C
-#define OFF_SetBarFill 0xD3F0B8
+#define OFF_AWAKEN_CALL 0x141223C
+#define OFF_AWAKEN_CALLER 0xAD6140
 
-#define OFF_SetLabelText 0xC0518C
-#define OFF_Localize 0xB866D0
-#define OFF_SkillMayaText 0x52A25A
+#define OFF_SetCharBorder 0x1079730
+#define OFF_SetBarFill 0xF8A31C
 
-#define OFF_CHAR101USERNAME_READ 0xA7789C
-#define OFF_CHAR101USERNAME_CONT 0xA778AC
+#define OFF_SetLabelText 0x15187A0
+#define OFF_Localize 0x1A8458C
+#define OFF_SkillMayaText 0x53E96F
+
+#define OFF_CHAR101USERNAME_ADD 0x109AE88
 
 /* SharedPreferences */
 
-#define OFF_UserDefaultSetString 0x999654
-#define OFF_UserDefaultGetString 0xEC1D24
-#define OFF_UserDefaultSetBool 0xB867F0
-#define OFF_UserDefaultGetBool 0xFE24D0
+#define OFF_UserDefaultSetString 0x1241248
+#define OFF_UserDefaultGetString 0x1560648
+#define OFF_UserDefaultSetBool 0xD161B0
+#define OFF_UserDefaultGetBool 0xF949A8
 
 /* 设置界面 */
 
 // Stamina Notification 分支
-#define OFF_SET_AVAIL_BYTE_TBZ 0xCE8BBC
-#define OFF_SET_AVAIL_VIRT_TBZ 0xCE8BC8
+#define OFF_SET_AVAIL_BYTE_TBZ 0x159C844
+#define OFF_SET_AVAIL_VIRT_TBZ 0x159C958
 
 // Unavailable Offline 分支
-#define OFF_SET_ROW_OFFLINE_BLOCK 0xCE8CD0
+#define OFF_SET_ROW_OFFLINE_BLOCK 0x159C958
 
 // 该行的取值 / 点击回调（被整段替换）
-#define OFF_SET_GET_CB 0x130CF3C
-#define OFF_SET_STAMINA_TAP 0x1A44678
+#define OFF_SET_GET_CB 0x9ACD24
+#define OFF_SET_STAMINA_TAP 0x1024250
 
 // "Invite Notification" 行的 push_back 三条指令。
-#define OFF_SET_INVITE_PUSH 0xCE9808
+#define OFF_SET_INVITE_PUSH 0x159D490
 
-#define OFF_CREDITS_LINE 0xB1D684
-#define OFF_CREATE_UI_NODE 0x12DD104
+#define OFF_CREDITS_LINE 0xA990B4
+#define OFF_CREATE_UI_NODE 0x1747484
 
 /* 存档 */
 
-#define OFF_SEC_NOTSAVED_SET 0x12D1800
+#define OFF_SEC_NOTSAVED_SET 0xBE2D2C
 
 /* 自动游玩 */
 
-#define OFF_AP_SCAN 0xA45D68
-#define OFF_AP_SKIP_NOTE 0xA45DF8
-#define OFF_AP_MISS_NOTE 0xA4636C
-#define OFF_AP_SKIP_ARC_CHILD 0xA46290
-#define OFF_AP_MISS_ARC_CHILD 0xA4631C
-#define OFF_AP_HIT_FN 0x12EB93C
-#define OFF_AP_MISS_HANDLER 0xF4914C
-#define OFF_AP_WINDOW_NOTE 0xA46358
-#define OFF_AP_WINDOW_ARCTAP 0xA46308
-#define OFF_AP_WINDOW_TAP 0xA46250
+#define OFF_AP_SCAN 0xE094D4
+#define OFF_AP_SKIP_NOTE 0xE09564
+#define OFF_AP_MISS_NOTE 0xE09AD8
+#define OFF_AP_SKIP_ARC_CHILD 0xE099FC
+#define OFF_AP_MISS_ARC_CHILD 0xE09A88
+#define OFF_AP_HIT_FN 0x18B2904
+#define OFF_AP_MISS_HANDLER 0x18B5FFC
+#define OFF_AP_WINDOW_NOTE 0xE09AC4
+#define OFF_AP_WINDOW_ARCTAP 0xE09A74
+#define OFF_AP_WINDOW_TAP 0xE099BC
 
-#define OFF_AP_VT_ARC 0x1A95018
-#define OFF_AP_VT_HOLD 0x1A9C498
+#define OFF_AP_VT_ARC 0x1B26E38
+#define OFF_AP_VT_HOLD 0x1BEC038
 
 /* 角色信息 */
 
@@ -97,7 +97,7 @@ struct CharInfo
     int id;
     bool has_uncap;
     const char *skill_id;
-    const char *skill_id_uncap;
+    const char *skill_id_uncap; // skill_id_uncap 留空则读取 skill_id
 };
 
 static const CharInfo g_char_info[] = {
@@ -203,6 +203,7 @@ static const CharInfo g_char_info[] = {
     {99, false, "frags_preferred_song", ""},
     {100, false, "skill_ilith_halloween", ""},
     {101, false, "skill_stream_palette", ""},
+    {102, true, "skill_amiya", ""},
 };
 
 static const int g_char_num = (int)(sizeof(g_char_info) / sizeof(g_char_info[0]));
