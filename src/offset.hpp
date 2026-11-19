@@ -30,7 +30,6 @@
 
 #define OFF_Init 0x960EE0
 #define OFF_OnlineSkill 0xF8CD64
-#define OFF_SealCtx 0x1C81AB8
 
 #define OFF_RenderCharUI 0x18079B4
 #define OFF_AwakenCheck 0xBB1138
@@ -42,10 +41,6 @@
 
 #define OFF_SetCharBorder 0x1079730
 #define OFF_SetBarFill 0xF8A31C
-
-#define OFF_SetLabelText 0x15187A0
-#define OFF_Localize 0x1A8458C
-#define OFF_SkillMayaText 0x53E96F
 
 #define OFF_CHAR101USERNAME_ADD 0x109AE88
 
@@ -177,7 +172,7 @@ static const CharInfo g_char_info[] = {
     {68, false, "skill_nami_twilight", ""},
     {69, false, "skill_ilith_ivy", ""},
     {70, false, "skill_hikari_vanessa", ""},
-    {71, true, "", "skill_maya_uncap"}, // skill_maya 无实际功能，故不填
+    {71, true, "skill_maya", "skill_maya_uncap"},
     {72, false, "skill_intruder", ""},
     {73, true, "skill_luin", "skill_luin_uncap"},
     {74, false, "", ""},

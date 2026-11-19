@@ -141,17 +141,6 @@ static void setWidgetEnabled(int64_t node_addr_field, bool en)
         se(node, en);
 }
 
-static bool isCharSealed(uintptr_t base)
-{
-    uint64_t ctx = *(uint64_t *)(g_base + OFF_SealCtx);
-    if (!ctx)
-        return false;
-    uint64_t slot = *(uint64_t *)(ctx + 120);
-    if (!slot)
-        return false;
-    return *(uint8_t *)(slot + 12) != 0;
-}
-
 static void forceAwakenUi(int64_t a1, int64_t obj, int cid)
 {
     if (!obj || cid < 0 || cid >= g_char_num || !hasUncap(cid))
@@ -160,20 +149,6 @@ static void forceAwakenUi(int64_t a1, int64_t obj, int cid)
     setNodeVisible(a1 + 1304, true);
     setNodeVisible(a1 + 1312, true);
     setWidgetEnabled(a1 + 1312, true);
-}
-
-static void force71SkillMayaDesc(int64_t a1, int64_t obj, int cid)
-{
-    if (!(obj && cid == 71 && !settingsIsAwakened(71) && !isCharSealed(g_base)))
-        return;
-    int64_t lbl = a1 ? *(int64_t *)(a1 + 1320) : 0;
-    if (!lbl)
-        return;
-    typedef GameStr (*PFN_Localize)(const char *);
-    GameStr s = ((PFN_Localize)(g_base + OFF_Localize))(
-        (const char *)(g_base + OFF_SkillMayaText));
-    ((void (*)(int64_t, void *))(g_base + OFF_SetLabelText))(lbl, &s);
-    gameStrFree(&s);
 }
 
 int64_t onRenderCharUI(int64_t a1)
@@ -185,7 +160,6 @@ int64_t onRenderCharUI(int64_t a1)
     int64_t obj = a1 ? *(int64_t *)(a1 + 784) : 0;
     int cid = obj ? *(int *)(obj + 12) : -1;
     forceAwakenUi(a1, obj, cid);
-    force71SkillMayaDesc(a1, obj, cid);
     return ret;
 }
 
