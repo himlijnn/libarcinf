@@ -162,16 +162,6 @@ static void forceAwakenUi(int64_t a1, int64_t obj, int cid)
     setWidgetEnabled(a1 + 1312, true);
 }
 
-static void force72SealButton(int64_t a1, int64_t obj, int cid)
-{
-    if (!obj || cid != 72)
-        return;
-    setNodeVisible(a1 + 1288, true);
-    setWidgetEnabled(a1 + 1288, true);
-    setNodeVisible(a1 + 1272, true);
-    setNodeVisible(a1 + 1280, true);
-}
-
 static void force71SkillMayaDesc(int64_t a1, int64_t obj, int cid)
 {
     if (!(obj && cid == 71 && !settingsIsAwakened(71) && !isCharSealed(g_base)))
@@ -195,7 +185,6 @@ int64_t onRenderCharUI(int64_t a1)
     int64_t obj = a1 ? *(int64_t *)(a1 + 784) : 0;
     int cid = obj ? *(int *)(obj + 12) : -1;
     forceAwakenUi(a1, obj, cid);
-    force72SealButton(a1, obj, cid);
     force71SkillMayaDesc(a1, obj, cid);
     return ret;
 }
