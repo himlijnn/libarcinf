@@ -23,7 +23,6 @@ libarcinf.so dynamically modifies libcocos2dcpp.so and supports:
 - All character skills available offline
 - Toggle character awakening state offline
 - Rework video resource paths
-- Modify the settings UI
 - ……
 
 The repository only keeps offsets for the latest game version.

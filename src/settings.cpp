@@ -131,16 +131,19 @@ namespace setPrefs
     }
 }
 
-// 设置界面的那一行
+// 设置界面的那一行（借用 "Show Potential"）
 
-// 这一行在 createMainContentBase 里被建两遍，唯一分叉是两道"在线数据可用吗"的门：
+// 这一行在 createMainContentBase 里也被建两遍，唯一分叉同样是两道"在线数据可用吗"的门：
 //   tbz w0,#0,<离线块>   -> 不满足则走离线变体（只有 "Unavailable Offline"，点不动）
 // 让 Auto 能开能关，只能走在线变体，所以两条 tbz 一律 NOP。
 // 只 NOP 不够：在线变体的取值 lambda 会解引用账号配置，未登录时是 NULL
 //   所以同时把取值 / 点击两个 lambda 整段替换成不碰游戏状态的实现。
 //
 // 取值 lambda 序言含 adrp（PC 相对），不能蹦床，只能 replaceFunction 整段替换。
-// 点击 lambda 原实现会弹对话框，替换后只做：翻转值 -> 落盘 -> 推给下游。
+// 点击 lambda 原实现会弹设置对话框，替换后只做：翻转值 -> 落盘 -> 推给下游。
+//
+// 原 Stamina Notification 行 / Invite Notification（Link Play）行已由静态补丁从布局里摘掉：
+//   0x159D484 / 0x159D490 两条 `add x0, sp, #0x4b0` 改成 `b +12`，跳过各自的 push_back 三条。
 
 int onStaminaGet(void *callable)
 {
@@ -207,28 +210,6 @@ static void forceOnlineVariantOfOurRow()
         patchWord(site, kNop);
     }
 #endif
-}
-
-// 隐藏 "Invite Notification"
-//
-// 该段每行建完后有 3 条指令把 widget 塞进栈上的向量：
-//   add x0, sp, #0x4b0 ; mov x1, x21 ; bl <vector::push_back>
-// 把这一组整体跳掉，行仍会被构造（因此后面逐行 release() 照常），只是不进容器
-// 不显示，也不留空位。比"整行不构造"少两个补丁点，且没有残留指针进容器的风险。
-
-static const uint32_t kInviteAddSp = 0x9112C3E0;  // add x0, sp, #0x4b0
-static const uint32_t kInviteMovX21 = 0xAA1503E1; // mov x1, x21
-
-static void hideInviteRow()
-{
-    const uintptr_t site = g_base + OFF_SET_INVITE_PUSH;
-    if (readWord(site) != kInviteAddSp)
-        return;
-    if (readWord(site + 4) != kInviteMovX21)
-        return;
-
-    // 跳过 3 条指令 = 12 字节。
-    (void)patchBranch(site, site + 12);
 }
 
 // Credits：插入 Particle Arts
@@ -365,7 +346,6 @@ void installSettingsHook()
     (void)replaceFunction(g_base + OFF_SET_STAMINA_TAP, (void *)&onStaminaTap);
 #endif
 
-    hideInviteRow();
     installCreditsHook();
     installLoginHook();
 }

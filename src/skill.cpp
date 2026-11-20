@@ -49,8 +49,6 @@ typedef int64_t (*PFN_RefreshCharState)(int64_t a1, char a2);
 typedef int64_t (*PFN_RenderCharUI)(int64_t a1);
 typedef int (*PFN_AwakenCheck)(int64_t a1);
 typedef int64_t (*PFN_ModifyCharState)(int64_t a1, int64_t a2, char a3, char a4, char a5);
-typedef void (*PFN_SetCharBorder)(int64_t a1, char a2);
-typedef void (*PFN_SetBarFill)(int64_t bar_node, float fill);
 
 static PFN_FileNameCtor g_file_name_ctor = nullptr;
 static PFN_RefAdd g_ref_add = nullptr;
@@ -61,8 +59,6 @@ static Trampoline g_refresh;
 static Trampoline g_render;
 static Trampoline g_awaken;
 static Trampoline g_modify;
-static Trampoline g_pborder;
-static Trampoline g_barfill;
 static Trampoline g_userslot1;
 
 static const CharInfo *findChar(int id)
@@ -197,29 +193,6 @@ int64_t onModifyCharState(int64_t a1, int64_t a2, char a3, char a4, char a5)
     }
 
     return ((PFN_ModifyCharState)g_modify.cave)(a1, a2, a3, a4, a5);
-}
-
-void onSetCharBorder(int64_t a1, char a2)
-{
-    int64_t obj = a1 ? *(int64_t *)(a1 + 1216) : 0;
-    bool has_obj = (obj != 0);
-    int saved_lv = 0;
-    if (has_obj)
-    {
-        saved_lv = *(int *)(obj + 192);
-        *(int *)(obj + 192) = 0;
-    }
-
-    ((PFN_SetCharBorder)g_pborder.cave)(a1, a2);
-
-    if (has_obj)
-        *(int *)(obj + 192) = saved_lv;
-}
-
-void onSetBarFill(int64_t bar_node, float fill)
-{
-    (void)fill;
-    ((PFN_SetBarFill)g_barfill.cave)(bar_node, 1.0f);
 }
 
 int64_t onRefreshCharState(int64_t a1, char a2)
@@ -377,8 +350,6 @@ void installSkillHook()
     g_render = installTrampoline(g_base + OFF_RenderCharUI, (void *)&onRenderCharUI);
     g_awaken = installTrampoline(g_base + OFF_AwakenCheck, (void *)&onAwakenCheck);
     g_modify = installTrampoline(g_base + OFF_ModifyCharState, (void *)&onModifyCharState);
-    g_pborder = installTrampoline(g_base + OFF_SetCharBorder, (void *)&onSetCharBorder);
-    g_barfill = installTrampoline(g_base + OFF_SetBarFill, (void *)&onSetBarFill);
     g_userslot1_add = g_base + OFF_CHAR101USERNAME_ADD;
     g_userslot1 = installTrampoline(g_base + (OFF_CHAR101USERNAME_ADD - 0x10), (void *)&onUserSlot1);
 }

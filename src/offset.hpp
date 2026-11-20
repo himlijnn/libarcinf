@@ -39,9 +39,6 @@
 #define OFF_AWAKEN_CALL 0x141223C
 #define OFF_AWAKEN_CALLER 0xAD6140
 
-#define OFF_SetCharBorder 0x1079730
-#define OFF_SetBarFill 0xF8A31C
-
 #define OFF_CHAR101USERNAME_ADD 0x109AE88
 
 /* SharedPreferences */
@@ -53,19 +50,18 @@
 
 /* 设置界面 */
 
-// Stamina Notification 分支
-#define OFF_SET_AVAIL_BYTE_TBZ 0x159C844
-#define OFF_SET_AVAIL_VIRT_TBZ 0x159C850
+// Show Potential 分支
+#define OFF_SET_AVAIL_BYTE_TBZ 0x159C45C
+#define OFF_SET_AVAIL_VIRT_TBZ 0x159C468
 
 // Unavailable Offline 分支
-#define OFF_SET_ROW_OFFLINE_BLOCK 0x159C958
+#define OFF_SET_ROW_OFFLINE_BLOCK 0x159C570
 
 // 该行的取值 / 点击回调（被整段替换）
-#define OFF_SET_GET_CB 0x9ACD24
-#define OFF_SET_STAMINA_TAP 0x1024250
+#define OFF_SET_GET_CB 0x19BF1E8
+#define OFF_SET_STAMINA_TAP 0x18FB798
 
-// "Invite Notification" 行的 push_back 三条指令。
-#define OFF_SET_INVITE_PUSH 0x159D490
+/* Credits */
 
 #define OFF_CREDITS_LINE 0xA990B4
 #define OFF_CREATE_UI_NODE 0x1747484
