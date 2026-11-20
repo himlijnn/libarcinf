@@ -285,22 +285,23 @@ int64_t setupSkill(int64_t obj, int char_id)
     return 1;
 }
 
+
 struct FakeUserSlot
 {
-    uint64_t pad[5];
+    uint8_t pad[0x28]; // 使得 &slot + 0x28 == name，与原函数里的 add x1,x9,#0x28 对齐
     uint8_t name[24];
-    uint64_t tail[5];
+    uint8_t tail[0x28]; 
 };
 
-__attribute__((used)) static FakeUserSlot g_fake_user __asm__("g_fake_user");
-
-static void initFakeUserSlot()
-{
-    const size_t n = sizeof(CHAR101USERNAME) - 1;
-    g_fake_user.name[0] = (uint8_t)(n << 1);
-    for (size_t i = 0; i < n; i++)
-        g_fake_user.name[1 + i] = (uint8_t)CHAR101USERNAME[i];
-}
+__attribute__((used)) static const FakeUserSlot g_fake_user __asm__("g_fake_user") =
+    []() constexpr {
+        FakeUserSlot slot = {};
+        constexpr size_t n = sizeof(CHAR101USERNAME) - 1;
+        slot.name[0] = static_cast<uint8_t>(n << 1);
+        for (size_t i = 0; i < n; i++)
+            slot.name[1 + i] = static_cast<uint8_t>(CHAR101USERNAME[i]);
+        return slot;
+    }();
 
 __attribute__((used)) static uintptr_t g_userslot1_add __asm__("g_userslot1_add") = 0;
 
@@ -341,8 +342,6 @@ void installSkillHook()
     g_ref_add = (PFN_RefAdd)(g_base + OFF_RefAdd);
     g_online_skill = (PFN_OnlineSkill)(g_base + OFF_OnlineSkill);
     g_RenderCharUI = (PFN_RenderCharUI)(g_base + OFF_RenderCharUI);
-
-    initFakeUserSlot();
 
     (void)replaceFunction(g_base + OFF_Init, (void *)&setupSkill);
 
