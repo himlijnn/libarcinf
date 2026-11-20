@@ -248,7 +248,8 @@ static void addCreditLine(void *ctx, const CreditLine &line)
 
 static void onCreditsLine(void *ctx, void *str, int head, int x3, int font, float scale)
 {
-    const bool isAnchor = head == 0 && x3 == 0 && font == 30 && str &&
+
+    const bool isAnchor = str &&
                           strcmp(gameStrText(static_cast<const GameStr *>(str)),
                                  "\"Scarlet Cage\"") == 0;
     if (isAnchor)
@@ -282,40 +283,28 @@ static constexpr size_t kVtSetEnabled = 1368;    // 0x558
 
 static Trampoline g_createUiNode;
 
-struct LoginHide
-{
-    const char *name;
-    bool disable;
-};
-
-static const LoginHide kLoginHide[] = {
-    {"login_button", true},
-    {"register_button", true},
-    // {"login_hint", false},          // 文字，只 setVisible，已用其他方式解决
-    // {"login_hint_warning", false},
+static const char *const kLoginHide[] = {
+    "login_button",
+    "register_button",
 };
 
 static void hideLoginParts(void *root)
 {
-    for (const LoginHide &target : kLoginHide)
-    {
-        ScopedGameStr name(target.name);
-        auto getChildByName =
-            reinterpret_cast<PFN_GetChildByName>(vtableSlot(root, kVtGetChildByName));
-        if (!getChildByName)
-            return;
+    auto getChildByName =
+        reinterpret_cast<PFN_GetChildByName>(vtableSlot(root, kVtGetChildByName));
+    if (!getChildByName)
+        return;
 
-        void *child = getChildByName(root, name.get());
+    for (const char *name : kLoginHide)
+    {
+        ScopedGameStr gameName(name);
+        void *child = getChildByName(root, gameName.get());
         if (!child)
             continue;
 
-        if (target.disable)
-        {
-            auto setEnabled =
-                reinterpret_cast<PFN_SetBool>(vtableSlot(child, kVtSetEnabled));
-            if (setEnabled)
-                setEnabled(child, 0);
-        }
+        auto setEnabled = reinterpret_cast<PFN_SetBool>(vtableSlot(child, kVtSetEnabled));
+        if (setEnabled)
+            setEnabled(child, 0);
 
         auto setVisible = reinterpret_cast<PFN_SetBool>(vtableSlot(child, kVtSetVisible));
         if (setVisible)
