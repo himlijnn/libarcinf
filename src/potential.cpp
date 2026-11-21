@@ -6,9 +6,12 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <dlfcn.h>
+#include <unistd.h>
 
+#include "game.hpp"
 #include "hook.hpp"
 #include "offset.hpp"
 #include "trampoline.hpp"
@@ -351,9 +354,69 @@ static bool showPotentialOn(void)
 
 typedef uintptr_t (*PFN_Panel)(void *self);
 typedef void (*PFN_OfflineResult)(void *scene, int flag);
+typedef uintptr_t (*PFN_TopBarInit)(void *self, void *name, int a3, int a4, void *delegate,
+                                    int a6);
 
 static Trampoline g_panel;
 static Trampoline g_offlineResult;
+static Trampoline g_topBarInit;
+
+// TopBar 实例（onTopBarInit 里捕获）。RatingChange 挂到它上面 -> 层级/坐标天然正确。
+static void *g_topBar = nullptr;
+
+// 上一次展示给玩家的 ptt（结算变化量的基准）。
+static int g_shownPtt = -1;
+// 结算时算出、等顶栏渲染那一刻再挂 UI 的变化量。
+static int g_pendingDelta = 0;
+static int g_pendingPtt = -1;
+static bool g_pendingValid = false;
+
+// cocos 节点工具
+
+static void *vslotOf(void *obj, size_t byteOffset)
+{
+    void *const *vt = *reinterpret_cast<void *const *const *>(obj);
+    if (!vt)
+        return nullptr;
+    return *reinterpret_cast<void *const *>(reinterpret_cast<const char *>(vt) + byteOffset);
+}
+
+template <typename Fn, typename... Args>
+static auto vcall(void *obj, size_t byteOffset, Args... args) -> decltype(auto)
+{
+    auto fn = reinterpret_cast<Fn>(vslotOf(obj, byteOffset));
+    return fn(obj, args...);
+}
+
+// 用游戏 ABI 构 std::string 并调用 fn(&str)，结束后释放
+template <typename Fn>
+static bool withGameStr(const char *text, Fn fn)
+{
+    GameStr str;
+    gameStrInit(&str, text);
+    const bool ok = fn(&str);
+    gameStrFree(&str);
+    return ok;
+}
+
+// 按名字取子节点
+static void *childByName(void *root, const char *name)
+{
+    void *found = nullptr;
+    withGameStr(name, [&](void *str)
+                {
+        found = vcall<void *(*)(void *, void *)>(root, OFF_VT_GET_CHILD, str);
+        return true; });
+    return found;
+}
+
+// getVisibleSize 的 ABI 是 void f(Size *sret /*x8*/)，必须用裸垫片从 x0 搬到 x8。
+__attribute__((naked)) static void callGetVisibleSize(void *out __attribute__((unused)),
+                                                      void *fn __attribute__((unused)))
+{
+    asm volatile("mov x8, x0\n"
+                 "br  x1\n");
+}
 
 // 被临时改过的字段，跑完原函数要原样放回。
 struct PanelPatch
@@ -363,7 +426,11 @@ struct PanelPatch
     bool pttFilled = false;
 };
 
-// 游戏只以离线形态（kind=3）运行，所以这里只做「离线 → 在线」的临时抬升
+// 游戏只以离线形态（kind=3）运行，所以这里只做「离线 → 在线」的临时抬升。
+//
+// 结算时先渲染旧值：animateRatingUpdate 的中间回调会重跑 setupRating，
+//   只有那一刻 user+0x44 是新值，数字才会经历「淡出 → 变新值 → 淡入」。
+//   若此处直接填新值，数字从第一帧就是新值 → 看起来完全没动画
 static void preparePanel(void *self, PanelPatch &patch, int ptt)
 {
     int *kind = reinterpret_cast<int *>(static_cast<char *>(self) + kOffCellKind);
@@ -373,6 +440,9 @@ static void preparePanel(void *self, PanelPatch &patch, int ptt)
     void *user = *reinterpret_cast<void **>(static_cast<char *>(self) + kOffCellUser);
     if (!user)
         return; // 没有 user 对象就只能放开形态，ptt 无从补起
+
+    if (g_pendingValid && g_pendingDelta != 0 && g_shownPtt >= 0)
+        ptt = g_shownPtt; // 结算首帧用旧值
 
     int *field = reinterpret_cast<int *>(static_cast<char *>(user) + kOffUserPtt);
     patch.oldPtt = *field;
@@ -393,7 +463,185 @@ static void restorePanel(void *self, const PanelPatch &patch)
     *reinterpret_cast<int *>(static_cast<char *>(user) + kOffUserPtt) = patch.oldPtt;
 }
 
-// 评分面板入口：关闭时完全透传（kind=3 ⇒ 游戏自己就不建评分节点）。
+// 面板根节点下是否有 ptt 文本容器
+static bool hasRatingContainer(void *panel)
+{
+    if (!panel)
+        return false;
+    void *root = *reinterpret_cast<void **>(static_cast<char *>(panel) + kOffCellUser);
+    if (!root)
+        return false;
+    return childByName(root, "rating_text_container") != nullptr;
+}
+
+// 结算变化量节点（RatingChange.csb）
+
+typedef void *(*PFN_LoadCsb)(void *gameStr);
+typedef void (*PFN_SetString)(void *node, void *gameStr);
+typedef void (*PFN_SetColor)(void *node, const void *color, int flag);
+typedef void *(*PFN_MakeFade)(float duration);
+typedef void *(*PFN_MakeMove)(const void *pos, float duration);
+typedef void *(*PFN_WrapAction)(void *action);
+typedef void *(*PFN_Spawn3)(void *, void *, void *);
+typedef void (*PFN_AnimateRating)(void *self, int delta);
+
+// 变化量节点缩放（原版是 0.6f）
+static const float kRatingChangeScale = 0.6f;
+// 压到最上层（原版 z=1 会被顶栏盖住）。
+static const int kRatingChangeZOrder = 0x7FFFFFF;
+
+// 自建 RatingChange 节点并挂到 parent 下：
+//   贴图 keep/up/down + "+ x.xxx" 文案 + 配色 + 0.6 缩放 + FadeIn(0.7) + MoveBy(0,-10)
+static void showRatingChange(void *parent, int delta)
+{
+    if (!parent)
+        return;
+
+    // 1) 加载节点
+    void *node = nullptr;
+    withGameStr("layouts/results/RatingChange.csb", [&](void *str)
+                {
+        node = reinterpret_cast<PFN_LoadCsb>(g_base + OFF_CREATE_UI_NODE)(str);
+        return true; });
+    if (!node)
+        return;
+
+    // 加载后必须 update 整棵子树，否则锚点/尺寸/贴图都是未初始化状态。
+    reinterpret_cast<void (*)(void *)>(g_base + OFF_NodeUpdateTree)(node);
+
+    // 2) 子节点
+    void *bg = childByName(node, "bg");
+    void *text = childByName(node, "text");
+    void *keepText = childByName(node, "keep_text");
+
+    // 3) 贴图（相对名，让 FileUtils 搜索路径去解析）
+    const char *texName = "layouts/results/rating_keep.png";
+    if (delta > 0)
+        texName = "layouts/results/rating_up.png";
+    else if (delta < 0)
+        texName = "layouts/results/rating_down.png";
+
+    if (bg)
+        withGameStr(texName, [&](void *str)
+                    {
+            vcall<void (*)(void *, void *)>(bg, OFF_VT_SET_TEXTURE, str);
+            return true; });
+
+    // 4) 文本 / 颜色 / keep_text 可见性
+    if (text)
+    {
+        if (delta == 0)
+        {
+            vcall<void (*)(void *, int)>(text, OFF_VT_SET_VISIBLE, 0);
+        }
+        else
+        {
+            char buf[32];
+            const int absD = delta < 0 ? -delta : delta;
+            snprintf(buf, sizeof(buf), "%c %d.%03d", delta > 0 ? '+' : '-', absD / 1000,
+                     absD % 1000);
+            withGameStr(buf, [&](void *str)
+                        {
+                reinterpret_cast<PFN_SetString>(g_base + OFF_LabelSetString)(text, str);
+                return true; });
+
+            // up = #038585FF，down = #D4485BFF
+            unsigned char color[4];
+            if (delta > 0)
+            {
+                color[0] = 0x03;
+                color[1] = 0x85;
+                color[2] = 0x85;
+            }
+            else
+            {
+                color[0] = 0xD4;
+                color[1] = 0x48;
+                color[2] = 0x5B;
+            }
+            color[3] = 0xFF;
+            reinterpret_cast<PFN_SetColor>(g_base + OFF_LabelSetColor)(text, color, 1);
+
+            vcall<void (*)(void *, int)>(text, OFF_VT_SET_VISIBLE, 1);
+        }
+
+        if (keepText)
+            vcall<void (*)(void *, int)>(keepText, OFF_VT_SET_VISIBLE, delta == 0 ? 1 : 0);
+    }
+
+    // 5) 缩放 + 位置
+    vcall<void (*)(void *, float)>(node, OFF_VT_SET_SCALE, kRatingChangeScale);
+
+    float pos[2];
+    if (parent == g_topBar)
+    {
+        // TopBar 的 contentSize = 屏幕尺寸 ⇒ 直接照抄游戏公式（无 up 偏移）
+        float visible[2] = {0.0f, 0.0f};
+        callGetVisibleSize(visible, reinterpret_cast<void *>(g_base + OFF_GetVisibleSize));
+        pos[0] = visible[0] * 0.5f + 110.0f;
+        pos[1] = visible[1] + 10.0f;
+    }
+    else
+    {
+        float visible[2] = {0.0f, 0.0f};
+        callGetVisibleSize(visible, reinterpret_cast<void *>(g_base + OFF_GetVisibleSize));
+        pos[0] = visible[0] * 0.5f + 110.0f;
+        pos[1] = visible[1] + 10.0f;
+        if (delta > 0)
+        {
+            pos[0] += 25.0f;
+            pos[1] += -5.0f;
+        }
+    }
+    vcall<void (*)(void *, const void *)>(node, OFF_VT_SET_POSITION, pos);
+
+    // 6) 显示 + 淡入（必须在 addChild 之前设好 opacity，否则 onEnter 时会被冲掉）
+    vcall<void (*)(void *, int)>(node, OFF_VT_SET_VISIBLE, 1);
+    vcall<void (*)(void *, int)>(node, OFF_VT_SET_CASCADE_OPACITY, 1);
+    vcall<void (*)(void *, int)>(node, OFF_VT_SET_OPACITY, 0);
+    {
+        void *fade = reinterpret_cast<PFN_MakeFade>(g_base + OFF_MakeFadeIn)(0.7f);
+        const float moveVec[2] = {0.0f, -10.0f};
+        void *move = reinterpret_cast<PFN_MakeMove>(g_base + OFF_MakeMoveBy)(moveVec, 0.7f);
+
+        if (fade && move)
+        {
+            void *wrapped = reinterpret_cast<PFN_WrapAction>(g_base + OFF_WrapAction)(move);
+            void *spawn =
+                reinterpret_cast<PFN_Spawn3>(g_base + OFF_SpawnCreate)(fade, wrapped, nullptr);
+            vcall<void (*)(void *, void *)>(node, OFF_VT_RUN_ACTION, spawn ? spawn : fade);
+        }
+        else if (fade)
+        {
+            vcall<void (*)(void *, void *)>(node, OFF_VT_RUN_ACTION, fade);
+        }
+    }
+
+    // 7) 最后挂载：先设好透明度/位姿/动作再 addChild，否则淡入会被 onEnter 冲掉。
+    withGameStr("rating_change", [&](void *str)
+                {
+        vcall<void (*)(void *, void *, int, void *)>(parent, OFF_VT_ADD_CHILD_NAMED, node,
+                                                     kRatingChangeZOrder, str);
+        return true; });
+}
+
+// 让 ptt 数字本身播放「淡出 → 重跑 setupRating（读新值）→ 淡入」
+// 直接调游戏自己的 UserCell::animateRatingUpdate
+static void playPttChange(void *panel, int delta, int newPtt)
+{
+    if (!panel)
+        return;
+
+    // restorePanel 已把 user+0x44 恢复成旧值 ⇒ 这里写新值，
+    // 让 1 秒后 setupRating 回调读到新值，数字才会在淡出后变化。
+    void *user = *reinterpret_cast<void **>(static_cast<char *>(panel) + kOffCellUser);
+    if (user)
+        *reinterpret_cast<int *>(static_cast<char *>(user) + kOffUserPtt) = newPtt;
+
+    reinterpret_cast<PFN_AnimateRating>(g_base + OFF_UserCellAnimateRating)(panel, delta);
+}
+
+// 评分面板入口：关闭时完全透传（kind=3 ⇒ 游戏自己就不建评分节点）
 static uintptr_t onPanel(void *self)
 {
     if (!self || !showPotentialOn())
@@ -401,27 +649,69 @@ static uintptr_t onPanel(void *self)
 
     PanelPatch patch;
     preparePanel(self, patch, pttGetX1000());
+
     const uintptr_t ret = reinterpret_cast<PFN_Panel>(g_panel.cave)(self);
+
     restorePanel(self, patch);
+
+    // 这里是「ptt 数字刚被写进标签」的那一刻（setupRating 内部读 user+0x44 → 写标签）
+    //   在这一刻挂变化量节点 + 让数字淡出淡入，两者才完全同步。
+    if (g_pendingValid && hasRatingContainer(self))
+    {
+        void *parent = g_topBar ? g_topBar : self;
+        showRatingChange(parent, g_pendingDelta);
+
+        if (g_pendingDelta != 0)
+            playPttChange(self, g_pendingDelta, g_pendingPtt);
+
+        g_pendingValid = false;
+    }
+    else if (hasRatingContainer(self))
+    {
+        // 主界面顶栏刷新：记下这次展示的 ptt，作为下一场结算的变化量基准。
+        // 结算期间不记（走上面那条），否则入库后的新值会把基准冲掉 → delta 恒 0。
+        g_shownPtt = pttGetX1000();
+    }
+
     return ret;
 }
 
 // 结算：st3 重算
-
-// 离线结算分支：成绩在本函数内入库，所以重算必须放在它返回之后
+// 离线结算分支：成绩在本函数内入库，所以重算必须放在它返回之后。
 static void onOfflineResult(void *scene, int flag)
 {
+    // 基准 = 上一次顶栏展示过的 ptt。不能在这里现算：成绩在进结算前已入库
+    const int oldPtt = g_shownPtt;
+
     reinterpret_cast<PFN_OfflineResult>(g_offlineResult.cave)(scene, flag);
 
     if (!showPotentialOn())
+    {
+        g_pendingValid = false;
         return; // 关闭时不读 st3、不计算
+    }
 
+    // 成绩入库已完成 → 丢掉缓存并全量重算
     pttInvalidate();
-    (void)pttGetX1000();
+    const int newPtt = pttGetX1000();
+
+    // 只记录，不在此处挂 UI，要等结算顶栏真正渲染出数字的那一刻（见 onPanel）
+    g_pendingPtt = newPtt;
+    g_pendingDelta = (oldPtt >= 0 && newPtt >= 0) ? (newPtt - oldPtt) : 0;
+    g_pendingValid = true;
+    (void)scene;
+}
+
+// TopBar::init 入口：x0 就是 TopBar 实例
+static uintptr_t onTopBarInit(void *self, void *name, int a3, int a4, void *delegate, int a6)
+{
+    g_topBar = self;
+    return reinterpret_cast<PFN_TopBarInit>(g_topBarInit.cave)(self, name, a3, a4, delegate, a6);
 }
 
 void installPotentialHook()
 {
     g_panel = installTrampoline(g_base + OFF_RatingPanel, (void *)&onPanel);
     g_offlineResult = installTrampoline(g_base + OFF_OfflineResult, (void *)&onOfflineResult);
+    g_topBarInit = installTrampoline(g_base + OFF_TopBarInit, (void *)&onTopBarInit);
 }

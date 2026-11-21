@@ -21,9 +21,9 @@ static const char *PREF_KEY_SHOWPOTENTIAL = "showPotential";
 static const char *PREF_KEY_AWAKENED = "awakened";
 
 static int g_autoPlay = 0;
-// showPotential：1 = 展示我们算出的 ptt，0 = 不展示（我们定义的「禁用」）。
-// 存档没读到时用这个初始值 ⇒ 默认「禁用」。
-static int g_showPotential = 0;
+// showPotential：1 = 展示我们算出的 ptt，0 = 不展示。
+// 存档没读到时用这个初始值 ⇒ 默认「展示 ptt」
+static int g_showPotential = 1;
 static uint8_t g_awaken[g_char_num] = {0};
 static bool g_autoPlayLoaded = false;
 static bool g_showPotentialLoaded = false;
@@ -32,8 +32,7 @@ static bool g_awakenLoaded = false;
 // 取值 / 归档
 
 // g_showPotential：1 = 展示 ptt，0 = 不展示。
-// 选项文案已交换：索引 0 的文案是 "Disabled"，而它在游戏里实际表示「启用」
-// ⇒ 展示时返回 0（行上显示 "Disabled"）。
+// 索引语义（实测）：展示 ptt 时返回 1，不展示时返回 0。
 
 int settingsIsAutoPlay(void)
 {
@@ -121,7 +120,8 @@ namespace getPrefs
         if (g_showPotentialLoaded)
             return;
         g_showPotentialLoaded = true;
-        g_showPotential = gameGetBool(PREF_KEY_SHOWPOTENTIAL, 0);
+        // 缺键时默认展示（与 g_showPotential 的初值一致）。
+        g_showPotential = gameGetBool(PREF_KEY_SHOWPOTENTIAL, 1);
     }
 }
 
@@ -200,7 +200,8 @@ int onShowPotentialGet(void *callable)
 {
     (void)callable;
     getPrefs::ShowPotential();
-    return g_showPotential ? 0 : 1;
+    // 实测：展示 ptt 对应索引 1，不展示对应索引 0。
+    return g_showPotential ? 1 : 0;
 }
 
 int onShowPotentialTap(void *callable)
@@ -209,7 +210,7 @@ int onShowPotentialTap(void *callable)
 
     g_showPotential = g_showPotential ? 0 : 1;
     setPrefs::ShowPotential();
-    return g_showPotential ? 0 : 1;
+    return g_showPotential ? 1 : 0;
 }
 
 // 两条门（实际是 4 条：两行各 2 条）的原始字：tbz w0,#0,<离线块>。

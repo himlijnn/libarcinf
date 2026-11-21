@@ -71,6 +71,31 @@
 #define OFF_RatingPanel 0x155E1AC
 #define OFF_OfflineResult 0x1653770
 
+/* 潜力值动画系统 */
+
+#define OFF_NodeUpdateTree 0xC5491C         // 结算动画：加载 csb 后必须更新一遍节点树
+#define OFF_LabelSetString 0x15187A0        // Label setString(node, std::string*)
+#define OFF_LabelSetColor 0x148F23C         // setColor(node, Color4B*, flag)
+#define OFF_MakeFadeIn 0x17591FC            // FadeIn(float sec)：目标 opacity 写死 255
+#define OFF_MakeMoveBy 0x9D5948             // MoveBy::create(const Vec2*, float)
+#define OFF_WrapAction 0x12AB874            // 动作包装（把 MoveBy 包成可参与 Spawn）
+#define OFF_SpawnCreate 0xCE07E4            // Spawn::create(FiniteTimeAction*, ...)
+#define OFF_GetVisibleSize 0xE649F4         // getVisibleSize —— ABI 是 void f(Size *sret /*x8*/)，必须用 naked 垫片
+#define OFF_TopBarInit 0xC80A3C             // TopBar::init(std::string, bool, bool, TopBarDelegate*, bool)：x0 = TopBar 实例
+#define OFF_UserCellAnimateRating 0x1356220 // UserCell::animateRatingUpdate(int)：淡出 → 重跑 setupRating → 淡入
+
+/* Cocos Node 虚表槽（字节偏移） */
+#define OFF_VT_SET_POSITION 0x98
+#define OFF_VT_SET_SCALE 0x80
+#define OFF_VT_SET_VISIBLE 0x150
+#define OFF_VT_ADD_CHILD_NAMED 0x200
+#define OFF_VT_GET_CHILD 0x210
+#define OFF_VT_GET_CONTENT_SIZE 0x148
+#define OFF_VT_RUN_ACTION 0x388
+#define OFF_VT_SET_OPACITY 0x470
+#define OFF_VT_SET_CASCADE_OPACITY 0x488
+#define OFF_VT_SET_TEXTURE 0x518
+
 /* 定数表 */
 
 struct SongConstant
