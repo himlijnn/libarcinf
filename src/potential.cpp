@@ -371,53 +371,6 @@ static int g_pendingDelta = 0;
 static int g_pendingPtt = -1;
 static bool g_pendingValid = false;
 
-// cocos 节点工具
-
-static void *vslotOf(void *obj, size_t byteOffset)
-{
-    void *const *vt = *reinterpret_cast<void *const *const *>(obj);
-    if (!vt)
-        return nullptr;
-    return *reinterpret_cast<void *const *>(reinterpret_cast<const char *>(vt) + byteOffset);
-}
-
-template <typename Fn, typename... Args>
-static auto vcall(void *obj, size_t byteOffset, Args... args) -> decltype(auto)
-{
-    auto fn = reinterpret_cast<Fn>(vslotOf(obj, byteOffset));
-    return fn(obj, args...);
-}
-
-// 用游戏 ABI 构 std::string 并调用 fn(&str)，结束后释放
-template <typename Fn>
-static bool withGameStr(const char *text, Fn fn)
-{
-    GameStr str;
-    gameStrInit(&str, text);
-    const bool ok = fn(&str);
-    gameStrFree(&str);
-    return ok;
-}
-
-// 按名字取子节点
-static void *childByName(void *root, const char *name)
-{
-    void *found = nullptr;
-    withGameStr(name, [&](void *str)
-                {
-        found = vcall<void *(*)(void *, void *)>(root, OFF_VT_GET_CHILD, str);
-        return true; });
-    return found;
-}
-
-// getVisibleSize 的 ABI 是 void f(Size *sret /*x8*/)，必须用裸垫片从 x0 搬到 x8。
-__attribute__((naked)) static void callGetVisibleSize(void *out __attribute__((unused)),
-                                                      void *fn __attribute__((unused)))
-{
-    asm volatile("mov x8, x0\n"
-                 "br  x1\n");
-}
-
 // 被临时改过的字段，跑完原函数要原样放回。
 struct PanelPatch
 {
@@ -524,7 +477,7 @@ static void showRatingChange(void *parent, int delta)
     if (bg)
         withGameStr(texName, [&](void *str)
                     {
-            vcall<void (*)(void *, void *)>(bg, OFF_VT_SET_TEXTURE, str);
+            gameVcall<void (*)(void *, void *)>(bg, OFF_VT_SET_TEXTURE, str);
             return true; });
 
     // 4) 文本 / 颜色 / keep_text 可见性
@@ -532,7 +485,7 @@ static void showRatingChange(void *parent, int delta)
     {
         if (delta == 0)
         {
-            vcall<void (*)(void *, int)>(text, OFF_VT_SET_VISIBLE, 0);
+            gameVcall<void (*)(void *, int)>(text, OFF_VT_SET_VISIBLE, 0);
         }
         else
         {
@@ -562,15 +515,15 @@ static void showRatingChange(void *parent, int delta)
             color[3] = 0xFF;
             reinterpret_cast<PFN_SetColor>(g_base + OFF_LabelSetColor)(text, color, 1);
 
-            vcall<void (*)(void *, int)>(text, OFF_VT_SET_VISIBLE, 1);
+            gameVcall<void (*)(void *, int)>(text, OFF_VT_SET_VISIBLE, 1);
         }
 
         if (keepText)
-            vcall<void (*)(void *, int)>(keepText, OFF_VT_SET_VISIBLE, delta == 0 ? 1 : 0);
+            gameVcall<void (*)(void *, int)>(keepText, OFF_VT_SET_VISIBLE, delta == 0 ? 1 : 0);
     }
 
     // 5) 缩放 + 位置
-    vcall<void (*)(void *, float)>(node, OFF_VT_SET_SCALE, kRatingChangeScale);
+    gameVcall<void (*)(void *, float)>(node, OFF_VT_SET_SCALE, kRatingChangeScale);
 
     float pos[2];
     if (parent == g_topBar)
@@ -593,12 +546,12 @@ static void showRatingChange(void *parent, int delta)
             pos[1] += -5.0f;
         }
     }
-    vcall<void (*)(void *, const void *)>(node, OFF_VT_SET_POSITION, pos);
+    gameVcall<void (*)(void *, const void *)>(node, OFF_VT_SET_POSITION, pos);
 
     // 6) 显示 + 淡入（必须在 addChild 之前设好 opacity，否则 onEnter 时会被冲掉）
-    vcall<void (*)(void *, int)>(node, OFF_VT_SET_VISIBLE, 1);
-    vcall<void (*)(void *, int)>(node, OFF_VT_SET_CASCADE_OPACITY, 1);
-    vcall<void (*)(void *, int)>(node, OFF_VT_SET_OPACITY, 0);
+    gameVcall<void (*)(void *, int)>(node, OFF_VT_SET_VISIBLE, 1);
+    gameVcall<void (*)(void *, int)>(node, OFF_VT_SET_CASCADE_OPACITY, 1);
+    gameVcall<void (*)(void *, int)>(node, OFF_VT_SET_OPACITY, 0);
     {
         void *fade = reinterpret_cast<PFN_MakeFade>(g_base + OFF_MakeFadeIn)(0.7f);
         const float moveVec[2] = {0.0f, -10.0f};
@@ -609,18 +562,18 @@ static void showRatingChange(void *parent, int delta)
             void *wrapped = reinterpret_cast<PFN_WrapAction>(g_base + OFF_WrapAction)(move);
             void *spawn =
                 reinterpret_cast<PFN_Spawn3>(g_base + OFF_SpawnCreate)(fade, wrapped, nullptr);
-            vcall<void (*)(void *, void *)>(node, OFF_VT_RUN_ACTION, spawn ? spawn : fade);
+            gameVcall<void (*)(void *, void *)>(node, OFF_VT_RUN_ACTION, spawn ? spawn : fade);
         }
         else if (fade)
         {
-            vcall<void (*)(void *, void *)>(node, OFF_VT_RUN_ACTION, fade);
+            gameVcall<void (*)(void *, void *)>(node, OFF_VT_RUN_ACTION, fade);
         }
     }
 
     // 7) 最后挂载：先设好透明度/位姿/动作再 addChild，否则淡入会被 onEnter 冲掉。
     withGameStr("rating_change", [&](void *str)
                 {
-        vcall<void (*)(void *, void *, int, void *)>(parent, OFF_VT_ADD_CHILD_NAMED, node,
+        gameVcall<void (*)(void *, void *, int, void *)>(parent, OFF_VT_ADD_CHILD_NAMED, node,
                                                      kRatingChangeZOrder, str);
         return true; });
 }

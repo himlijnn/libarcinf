@@ -86,6 +86,9 @@ private:
     GameStr str_ = {};
 };
 
+
+// cocos 存档工具
+
 // UserDefault：内部转成 SharedPreferences，this 参数游戏自己不用，传 nullptr 安全。
 
 inline int gameGetBool(const char *key, int def)
@@ -134,4 +137,59 @@ inline void gameSetString(const char *key, const char *value)
     typedef void (*PFN)(void *, const char *, GameStr *);
     ScopedGameStr str(value);
     reinterpret_cast<PFN>(g_base + OFF_UserDefaultSetString)(nullptr, key, str.get());
+}
+
+// cocos 节点通用工具
+//
+// 节点首字段是 vtable 指针，所有方法都按字节偏移取槽
+
+// 取虚表槽；obj 为空或 vtable 为空时返回 nullptr
+inline void *gameVslot(const void *obj, size_t byteOffset)
+{
+    if (!obj)
+        return nullptr;
+    void *const *vt = *reinterpret_cast<void *const *const *>(obj);
+    if (!vt)
+        return nullptr;
+    return *reinterpret_cast<void *const *>(reinterpret_cast<const char *>(vt) + byteOffset);
+}
+
+// 调用节点虚方法：gameVcall<void (*)(void *, int)>(node, OFF_VT_SET_VISIBLE, 1)
+template <typename Fn, typename... Args>
+inline auto gameVcall(void *obj, size_t byteOffset, Args... args) -> decltype(auto)
+{
+    auto fn = reinterpret_cast<Fn>(gameVslot(obj, byteOffset));
+    return fn(obj, args...);
+}
+
+// 用游戏 ABI 构造 std::string 并调用 fn(&str)，结束后释放。
+template <typename Fn> inline bool withGameStr(const char *text, Fn fn)
+{
+    GameStr str;
+    gameStrInit(&str, text);
+    const bool ok = fn(&str);
+    gameStrFree(&str);
+    return ok;
+}
+
+// 按名字取子节点（vtable + OFF_VT_GET_CHILD）。找不到返回 nullptr。
+inline void *childByName(void *root, const char *name)
+{
+    if (!root)
+        return nullptr;
+    void *found = nullptr;
+    withGameStr(name, [&](void *str) {
+        found = gameVcall<void *(*)(void *, void *)>(root, OFF_VT_GET_CHILD, str);
+        return true;
+    });
+    return found;
+}
+
+// getVisibleSize 的 ABI 是 void f(Size *sret /*x8*/)，必须用裸垫片把 x0 搬到 x8。
+// 用法：callGetVisibleSize(out, g_base + OFF_GetVisibleSize);
+__attribute__((naked)) static void callGetVisibleSize(void *out __attribute__((unused)),
+                                                      void *fn __attribute__((unused)))
+{
+    asm volatile("mov x8, x0\n"
+                 "br  x1\n");
 }
