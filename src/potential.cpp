@@ -21,9 +21,11 @@ static const char *const kSt3Path = OBB_DIR "st3";
 // UserCell 字段（非指令地址，跨版本稳定）
 static constexpr size_t kOffCellUser = 0x498; // panel -> user 对象
 static constexpr size_t kOffCellKind = 0x4A0; // panel -> 形态
+static constexpr size_t kOffCellRoot = 0x4A8; // panel -> 根节点（csb UserCell.csb 的根）
 static constexpr size_t kOffUserPtt = 0x44;   // user -> ptt×1000
 
-static constexpr int kKindOnline = 2; // 2 = 建评分面板
+static constexpr int kKindOnline = 2;  // 建评分面板
+static constexpr int kKindOffline = 3; // 游戏的真实形态（setupRating 直接 ret）
 
 // 单次成绩分档
 static const int kScoreMax = 10000000;
@@ -354,8 +356,9 @@ static bool showPotentialOn(void)
 
 typedef uintptr_t (*PFN_Panel)(void *self);
 typedef void (*PFN_OfflineResult)(void *scene, int flag);
-typedef uintptr_t (*PFN_TopBarInit)(void *self, void *name, int a3, int a4, void *delegate,
-                                    int a6);
+// TopBar::init(x0=this, x1=std::string*, w2, w3, w4, x5=delegate, w6)，共 7 个参数，返回 bool。
+typedef bool (*PFN_TopBarInit)(void *self, void *name, int a2, int a3, int a4, void *delegate,
+                               int a6);
 
 static Trampoline g_panel;
 static Trampoline g_offlineResult;
@@ -374,25 +377,23 @@ static bool g_pendingValid = false;
 // 被临时改过的字段，跑完原函数要原样放回。
 struct PanelPatch
 {
-    int oldKind = 0;
     int oldPtt = 0;
     bool pttFilled = false;
 };
 
-// 游戏只以离线形态（kind=3）运行，所以这里只做「离线 → 在线」的临时抬升。
+// 游戏只以离线形态（kind=3）运行 ⇒ 只需把 kind 临时抬到 2，让 setupRating 真正建节点。
 //
 // 结算时先渲染旧值：animateRatingUpdate 的中间回调会重跑 setupRating，
 //   只有那一刻 user+0x44 是新值，数字才会经历「淡出 → 变新值 → 淡入」。
 //   若此处直接填新值，数字从第一帧就是新值 → 看起来完全没动画
 static void preparePanel(void *self, PanelPatch &patch, int ptt)
 {
-    int *kind = reinterpret_cast<int *>(static_cast<char *>(self) + kOffCellKind);
-    patch.oldKind = *kind;
-    *kind = kKindOnline;
+    // 离线 → 在线临时抬升（只在本函数调用期间有效）
+    *reinterpret_cast<int *>(static_cast<char *>(self) + kOffCellKind) = kKindOnline;
 
     void *user = *reinterpret_cast<void **>(static_cast<char *>(self) + kOffCellUser);
     if (!user)
-        return; // 没有 user 对象就只能放开形态，ptt 无从补起
+        return; // 没有 user 对象，ptt 无从补起
 
     if (g_pendingValid && g_pendingDelta != 0 && g_shownPtt >= 0)
         ptt = g_shownPtt; // 结算首帧用旧值
@@ -405,7 +406,8 @@ static void preparePanel(void *self, PanelPatch &patch, int ptt)
 
 static void restorePanel(void *self, const PanelPatch &patch)
 {
-    *reinterpret_cast<int *>(static_cast<char *>(self) + kOffCellKind) = patch.oldKind;
+    // kind 一定改过（preparePanel 无条件抬升）→ 无条件还原成离线形态。
+    *reinterpret_cast<int *>(static_cast<char *>(self) + kOffCellKind) = kKindOffline;
 
     if (!patch.pttFilled)
         return;
@@ -416,15 +418,27 @@ static void restorePanel(void *self, const PanelPatch &patch)
     *reinterpret_cast<int *>(static_cast<char *>(user) + kOffUserPtt) = patch.oldPtt;
 }
 
-// 面板根节点下是否有 ptt 文本容器
+// 面板根节点下是否有 ptt 文本容器（只有真显示评分的面板才有）
+// 根节点是 panel+0x4A8，不是 +0x498（后者是 user 对象指针）
 static bool hasRatingContainer(void *panel)
 {
     if (!panel)
         return false;
-    void *root = *reinterpret_cast<void **>(static_cast<char *>(panel) + kOffCellUser);
+    void *root = *reinterpret_cast<void **>(static_cast<char *>(panel) + kOffCellRoot);
     if (!root)
         return false;
     return childByName(root, "rating_text_container") != nullptr;
+}
+
+// ptt 文本容器（rating_text_container），变化量节点挂在它里面，与 ptt 数字共用局部坐标
+static void *pttContainerOf(void *panel)
+{
+    if (!panel)
+        return nullptr;
+    void *root = *reinterpret_cast<void **>(static_cast<char *>(panel) + kOffCellRoot);
+    if (!root)
+        return nullptr;
+    return childByName(root, "rating_text_container");
 }
 
 // 结算变化量节点（RatingChange.csb）
@@ -611,7 +625,11 @@ static uintptr_t onPanel(void *self)
     //   在这一刻挂变化量节点 + 让数字淡出淡入，两者才完全同步。
     if (g_pendingValid && hasRatingContainer(self))
     {
-        void *parent = g_topBar ? g_topBar : self;
+        // 父节点必须是真正的 Node：TopBar → 容器 → 面板根节点。
+        //   绝不能传 self（UserCell 对象本身，对它 addChild 会写坏面板，导致 ptt 旁的角色头像无法点击）
+        void *container = pttContainerOf(self);
+        void *root = *reinterpret_cast<void **>(static_cast<char *>(self) + kOffCellRoot);
+        void *parent = g_topBar ? g_topBar : (container ? container : root);
         showRatingChange(parent, g_pendingDelta);
 
         if (g_pendingDelta != 0)
@@ -655,11 +673,12 @@ static void onOfflineResult(void *scene, int flag)
     (void)scene;
 }
 
-// TopBar::init 入口：x0 就是 TopBar 实例
-static uintptr_t onTopBarInit(void *self, void *name, int a3, int a4, void *delegate, int a6)
+// TopBar::init 入口：x0 就是 TopBar 实例。
+static bool onTopBarInit(void *self, void *name, int a2, int a3, int a4, void *delegate, int a6)
 {
     g_topBar = self;
-    return reinterpret_cast<PFN_TopBarInit>(g_topBarInit.cave)(self, name, a3, a4, delegate, a6);
+    return reinterpret_cast<PFN_TopBarInit>(g_topBarInit.cave)(self, name, a2, a3, a4, delegate,
+                                                               a6);
 }
 
 void installPotentialHook()
