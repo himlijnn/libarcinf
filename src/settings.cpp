@@ -1,10 +1,12 @@
 // 设置界面接管 + 全工程唯一存档读写处。
-//   1. 把设置界面里 "Stamina Notification" 那一行改造成 Auto Mode 开关：
-//      强行走"在线/可用"分支，并把取值 / 点击两个 lambda 整段替换成我们自己的实现。
-//   2. 把 "Invite Notification" 那一行从布局里摘掉（跳过它的 push_back）。
-//   3. 两处纯展示改写：About 页 Credits 里插入一段曲目信息、登录页隐掉注册/登录按钮。
+//   1. "Stamina Notification" 行 → Auto Mode 开关（键 autoPlay）。
+//   2. "Show Potential" 行 → 我们自己的 ptt 是否展示（键 showPotential）。
+//      两行都强行走"在线/可用"分支（NOP 掉各自的两道门），
+//      并把取值 / 点击两个 lambda 整段替换成不碰游戏状态的实现。
+//   3. "Invite Notification" 行由静态补丁从布局里摘掉（只跳它自己的 push_back）。
+//   4. 两处纯展示改写：About 页 Credits 里插入一段曲目信息、登录页隐掉注册/登录按钮。
 //
-// autoPlay 的值在游戏初始化角色时读取，参考 skill.cpp
+// autoPlay / showPotential 的值在游戏初始化角色时读取，参考 skill.cpp
 
 #include <cstdint>
 #include <cstring>
@@ -15,18 +17,32 @@
 #include "trampoline.hpp"
 
 static const char *PREF_KEY_AUTOPLAY = "autoPlay";
+static const char *PREF_KEY_SHOWPOTENTIAL = "showPotential";
 static const char *PREF_KEY_AWAKENED = "awakened";
 
 static int g_autoPlay = 0;
+// showPotential：1 = 展示我们算出的 ptt，0 = 不展示（我们定义的「禁用」）。
+// 存档没读到时用这个初始值 ⇒ 默认「禁用」。
+static int g_showPotential = 0;
 static uint8_t g_awaken[g_char_num] = {0};
 static bool g_autoPlayLoaded = false;
+static bool g_showPotentialLoaded = false;
 static bool g_awakenLoaded = false;
 
 // 取值 / 归档
 
+// g_showPotential：1 = 展示 ptt，0 = 不展示。
+// 选项文案已交换：索引 0 的文案是 "Disabled"，而它在游戏里实际表示「启用」
+// ⇒ 展示时返回 0（行上显示 "Disabled"）。
+
 int settingsIsAutoPlay(void)
 {
     return g_autoPlay;
+}
+
+int settingsIsShowPotential(void)
+{
+    return g_showPotential;
 }
 
 int settingsIsAwakened(int id)
@@ -94,11 +110,18 @@ namespace getPrefs
         if (g_autoPlayLoaded)
             return;
         g_autoPlayLoaded = true;
-
         g_autoPlay = gameGetBool(PREF_KEY_AUTOPLAY, 0);
 #if enableAutoplayHook
         applyToggle(g_autoPlay);
 #endif
+    }
+
+    void ShowPotential()
+    {
+        if (g_showPotentialLoaded)
+            return;
+        g_showPotentialLoaded = true;
+        g_showPotential = gameGetBool(PREF_KEY_SHOWPOTENTIAL, 0);
     }
 }
 
@@ -129,23 +152,30 @@ namespace setPrefs
     {
         gameSetBool(PREF_KEY_AUTOPLAY, g_autoPlay);
     }
+
+    void ShowPotential()
+    {
+        gameSetBool(PREF_KEY_SHOWPOTENTIAL, g_showPotential);
+    }
 }
 
-// 设置界面的那一行（借用 "Show Potential"）
-
-// 这一行在 createMainContentBase 里也被建两遍，唯一分叉同样是两道"在线数据可用吗"的门：
+// 设置界面借用的两行
+//
+// 两行结构完全一样：在 createMainContentBase 里各被建两遍，唯一分叉是两道
+// 「在线数据可用吗」的门：
 //   tbz w0,#0,<离线块>   -> 不满足则走离线变体（只有 "Unavailable Offline"，点不动）
-// 让 Auto 能开能关，只能走在线变体，所以两条 tbz 一律 NOP。
+// 要让开关能开能关，只能走在线变体，所以两行的两条 tbz 一律 NOP。
 // 只 NOP 不够：在线变体的取值 lambda 会解引用账号配置，未登录时是 NULL
-//   所以同时把取值 / 点击两个 lambda 整段替换成不碰游戏状态的实现。
+//   ⇒ 同时把取值 / 点击两个 lambda 整段替换成不碰游戏状态的实现。
 //
 // 取值 lambda 序言含 adrp（PC 相对），不能蹦床，只能 replaceFunction 整段替换。
-// 点击 lambda 原实现会弹设置对话框，替换后只做：翻转值 -> 落盘 -> 推给下游。
+// 点击 lambda 原实现走网络提交，替换后只做：翻转值 -> 落盘 -> 返回新值。
 //
-// 原 Stamina Notification 行 / Invite Notification（Link Play）行已由静态补丁从布局里摘掉：
-//   0x159D484 / 0x159D490 两条 `add x0, sp, #0x4b0` 改成 `b +12`，跳过各自的 push_back 三条。
+// 行可见性：
+//   Invite Notification（设置界面最后一行）已由静态补丁跳过它自己的 push_back，
+//   运行时不需要再做任何事；Stamina 行保持原样显示。
 
-int onStaminaGet(void *callable)
+int onAutoPlayGet(void *callable)
 {
     (void)callable;
     // 读档放在这里：界面正在显示这一行，说明 Helper 已经就绪。
@@ -153,7 +183,7 @@ int onStaminaGet(void *callable)
     return g_autoPlay;
 }
 
-int onStaminaTap(void *callable)
+int onAutoPlayTap(void *callable)
 {
     (void)callable;
 
@@ -166,8 +196,24 @@ int onStaminaTap(void *callable)
     return g_autoPlay;
 }
 
-// 两条门的原始字：tbz w0,#0,<离线块>。校验结构而不是整字比对，
-// 版本漂移时（比如换成了 tbnz/别的寄存器）能直接暴露。
+int onShowPotentialGet(void *callable)
+{
+    (void)callable;
+    getPrefs::ShowPotential();
+    return g_showPotential ? 0 : 1;
+}
+
+int onShowPotentialTap(void *callable)
+{
+    (void)callable;
+
+    g_showPotential = g_showPotential ? 0 : 1;
+    setPrefs::ShowPotential();
+    return g_showPotential ? 0 : 1;
+}
+
+// 两条门（实际是 4 条：两行各 2 条）的原始字：tbz w0,#0,<离线块>。
+// 校验结构而不是整字比对，版本漂移时（比如换成了 tbnz/别的寄存器）能直接暴露。
 static bool isAvailabilityGate(uint32_t word, uintptr_t site, uintptr_t offlineBlock)
 {
     constexpr uint32_t kTbzW0Bit0 = 0x36000000;
@@ -185,9 +231,8 @@ static bool isAvailabilityGate(uint32_t word, uintptr_t site, uintptr_t offlineB
     return site + static_cast<uintptr_t>(imm * 4) == offlineBlock;
 }
 
-static void forceOnlineVariantOfOurRow()
+static void forceOnlineVariantOfOurRows()
 {
-#if enableAutoplayHook
     constexpr uint32_t kNop = 0xD503201F;
 
     struct Gate
@@ -195,10 +240,12 @@ static void forceOnlineVariantOfOurRow()
         uintptr_t offset;
         uintptr_t offlineBlock;
     };
-    // 两条门都跳到同一个离线块。
+    // 每行的两条门都跳到该行自己的离线块。
     static const Gate gates[] = {
-        {OFF_SET_AVAIL_BYTE_TBZ, OFF_SET_ROW_OFFLINE_BLOCK},
-        {OFF_SET_AVAIL_VIRT_TBZ, OFF_SET_ROW_OFFLINE_BLOCK},
+        {OFF_SET_AUTOPLAY_TBZ_BYTE, OFF_SET_AUTOPLAY_OFFLINE},
+        {OFF_SET_AUTOPLAY_TBZ_VIRT, OFF_SET_AUTOPLAY_OFFLINE},
+        {OFF_SET_PTT_TBZ_BYTE, OFF_SET_PTT_OFFLINE},
+        {OFF_SET_PTT_TBZ_VIRT, OFF_SET_PTT_OFFLINE},
     };
 
     for (const Gate &gate : gates)
@@ -209,7 +256,6 @@ static void forceOnlineVariantOfOurRow()
             continue;
         patchWord(site, kNop);
     }
-#endif
 }
 
 // Credits：插入 Particle Arts
@@ -329,11 +375,13 @@ static void installLoginHook()
 
 void installSettingsHook()
 {
-#if enableAutoplayHook
-    forceOnlineVariantOfOurRow();
-    (void)replaceFunction(g_base + OFF_SET_GET_CB, (void *)&onStaminaGet);
-    (void)replaceFunction(g_base + OFF_SET_STAMINA_TAP, (void *)&onStaminaTap);
-#endif
+    forceOnlineVariantOfOurRows();
+
+    // 取值 / 点击回调整段替换（序言含 adrp，不能蹦床）。
+    (void)replaceFunction(g_base + OFF_SET_AUTOPLAY_GET, (void *)&onAutoPlayGet);
+    (void)replaceFunction(g_base + OFF_SET_AUTOPLAY_TAP, (void *)&onAutoPlayTap);
+    (void)replaceFunction(g_base + OFF_SET_PTT_GET, (void *)&onShowPotentialGet);
+    (void)replaceFunction(g_base + OFF_SET_PTT_TAP, (void *)&onShowPotentialTap);
 
     installCreditsHook();
     installLoginHook();

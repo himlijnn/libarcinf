@@ -25,6 +25,7 @@ extern "C" __attribute__((visibility("default"))) jint JNICALL JNI_OnLoad(JavaVM
     installSkillHook();
     installVideoHook();
     installSettingsHook();
+    installPotentialHook();
 
 #if enableAutoplayHook
     installAutoplayHook();

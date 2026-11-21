@@ -29,11 +29,7 @@ namespace
 {
     // FileUtils vtable 里 isFileExist 的槽偏移（槽里是 0x12EC728 转发 thunk，
     // 内部再跳 +0x190 到实现 0x15F7664）。
-    constexpr size_t kSlotIsFileExist = 0x110;
-
-    constexpr char kVideoMatch[] = "hascome_video.mp4";
-
-    constexpr char kVideoTarget[] = ASSETS_DIR "songs/hascome/video.mp4";
+    const size_t kSlotIsFileExist = 0x110;
 
     // libc++ std::string：byte0 bit0 = 1 表示长串（size 在 +8，dataPtr 在 +16），
     // 否则 size = byte0 >> 1，数据紧随其后（SSO，最多 22 字节）。
@@ -114,11 +110,11 @@ namespace
         char name[64];
         readGameStr(nameStr, name, sizeof(name));
 
-        if (!strstr(name, kVideoMatch))
+        if (!strstr(name, "hascome_video.mp4"))
             return g_realIsFileExist ? g_realIsFileExist(self, nameStr) : false;
 
         // 目标必须真的存在才放行，免得游戏播放滚木
-        if (access(kVideoTarget, F_OK) == 0)
+        if (access(ASSETS_DIR "songs/hascome/video.mp4", F_OK) == 0)
             return true;
 
         return g_realIsFileExist ? g_realIsFileExist(self, nameStr) : false;
@@ -130,10 +126,10 @@ namespace
         char name[64];
         readGameStr(nameStr, name, sizeof(name));
 
-        if (!strstr(name, kVideoMatch))
+        if (!strstr(name, "hascome_video.mp4"))
             return;
 
-        writeGameStr(outStr, kVideoTarget);
+        writeGameStr(outStr, ASSETS_DIR "songs/hascome/video.mp4");
     }
 
     // (x0 = 文件名 std::string*, x8 = sret 返回缓冲区)
