@@ -86,9 +86,6 @@ private:
     GameStr str_ = {};
 };
 
-
-// cocos 存档工具
-
 // UserDefault：内部转成 SharedPreferences，this 参数游戏自己不用，传 nullptr 安全。
 
 inline int gameGetBool(const char *key, int def)
@@ -139,11 +136,11 @@ inline void gameSetString(const char *key, const char *value)
     reinterpret_cast<PFN>(g_base + OFF_UserDefaultSetString)(nullptr, key, str.get());
 }
 
-// cocos 节点通用工具
+// ── Cocos 节点通用工具 ────────────────────────────────────────────────
 //
-// 节点首字段是 vtable 指针，所有方法都按字节偏移取槽
+// 节点首字段是 vtable 指针，所有方法都按**字节偏移**取槽（不要写成 vtable[下标]）。
 
-// 取虚表槽；obj 为空或 vtable 为空时返回 nullptr
+// 取虚表槽；obj 为空或 vtable 为空时返回 nullptr。
 inline void *gameVslot(const void *obj, size_t byteOffset)
 {
     if (!obj)

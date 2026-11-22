@@ -33,3 +33,4 @@ void settingsSetAwaken(int id, int on);
 
 void autoplayApply(int on);
 void securityApply(int on);
+void potentialOnToggled(int on);

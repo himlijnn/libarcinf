@@ -210,6 +210,7 @@ int onShowPotentialTap(void *callable)
 
     g_showPotential = g_showPotential ? 0 : 1;
     setPrefs::ShowPotential();
+    potentialOnToggled(g_showPotential);
     return g_showPotential ? 1 : 0;
 }
 

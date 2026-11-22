@@ -12,7 +12,7 @@
 
 #define TARGET "libcocos2dcpp.so"
 #define ASSETS_DIR "/sdcard/arcinf/assets/"
-#define OBB_DIR "/sdcard/Android/obb/moe.inf.arc/"
+#define PACKAGE_NAME "moe.inf.arc"
 #define CHAR101USERNAME " " // 101 号角色技能显示的用户名
 
 /* 基础功能 */
@@ -65,6 +65,31 @@
 #define OFF_SET_PTT_OFFLINE 0x159C570 // Unavailable Offline 分支
 #define OFF_SET_PTT_GET 0x19BF1E8     // 读 showPotential（cfg[0x10]）
 #define OFF_SET_PTT_TAP 0x18FB798     // 原实现走网络提交
+
+/* Credits */
+
+#define OFF_CREDITS_LINE 0xA990B4
+#define OFF_CREATE_UI_NODE 0x1747484
+
+/* 存档 */
+
+#define OFF_SEC_NOTSAVED_SET 0xBE2D2C
+
+/* 自动游玩 */
+
+#define OFF_AP_SCAN 0xE094D4
+#define OFF_AP_SKIP_NOTE 0xE09564
+#define OFF_AP_MISS_NOTE 0xE09AD8
+#define OFF_AP_SKIP_ARC_CHILD 0xE099FC
+#define OFF_AP_MISS_ARC_CHILD 0xE09A88
+#define OFF_AP_HIT_FN 0x18B2904
+#define OFF_AP_MISS_HANDLER 0x18B5FFC
+#define OFF_AP_WINDOW_NOTE 0xE09AC4
+#define OFF_AP_WINDOW_ARCTAP 0xE09A74
+#define OFF_AP_WINDOW_TAP 0xE099BC
+
+#define OFF_AP_VT_ARC 0x1B26E38
+#define OFF_AP_VT_HOLD 0x1BEC038
 
 /* 潜力值 */
 
@@ -678,31 +703,6 @@ inline constexpr SongConstant kSongConstants[] = {
 
 inline constexpr int kSongConstantCount =
     static_cast<int>(sizeof(kSongConstants) / sizeof(kSongConstants[0]));
-
-/* Credits */
-
-#define OFF_CREDITS_LINE 0xA990B4
-#define OFF_CREATE_UI_NODE 0x1747484
-
-/* 存档 */
-
-#define OFF_SEC_NOTSAVED_SET 0xBE2D2C
-
-/* 自动游玩 */
-
-#define OFF_AP_SCAN 0xE094D4
-#define OFF_AP_SKIP_NOTE 0xE09564
-#define OFF_AP_MISS_NOTE 0xE09AD8
-#define OFF_AP_SKIP_ARC_CHILD 0xE099FC
-#define OFF_AP_MISS_ARC_CHILD 0xE09A88
-#define OFF_AP_HIT_FN 0x18B2904
-#define OFF_AP_MISS_HANDLER 0x18B5FFC
-#define OFF_AP_WINDOW_NOTE 0xE09AC4
-#define OFF_AP_WINDOW_ARCTAP 0xE09A74
-#define OFF_AP_WINDOW_TAP 0xE099BC
-
-#define OFF_AP_VT_ARC 0x1B26E38
-#define OFF_AP_VT_HOLD 0x1BEC038
 
 /* 角色信息 */
 
