@@ -755,12 +755,6 @@ static bool onTopBarInit(void *self, void *name, int a2, int a3, int a4, void *d
 void installPotentialHook()
 {
     g_panel = installTrampoline(g_base + OFF_RatingPanel, (void *)&onPanel);
-    if (!g_panel.ok)
-        return; // 补丁失败就什么都不做，绝不让 hook 里跳 cave(0)
-
     g_offlineResult = installTrampoline(g_base + OFF_OfflineResult, (void *)&onOfflineResult);
-    if (!g_offlineResult.ok)
-        return;
-
     g_topBarInit = installTrampoline(g_base + OFF_TopBarInit, (void *)&onTopBarInit);
 }
