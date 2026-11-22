@@ -1,13 +1,5 @@
 #pragma once
 
-// 游戏侧 std::string 与 UserDefault 的最小封装。
-//
-// 为什么不能直接用自己的 std::string：
-//   * 游戏用的是 libc++（c++_static），与宿主 App 的 STL 实例不是同一份；
-//   * 布局是 libc++ 的 24 字节形态：byte0 bit0 = 1 表示长串（堆上），否则短串
-//     （size = byte0 >> 1，数据紧随其后，最多 22 字节）。
-// 因此构造一律走游戏自己的 string ctor，析构走游戏的 operator delete。
-
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -136,8 +128,6 @@ inline void gameSetString(const char *key, const char *value)
     reinterpret_cast<PFN>(g_base + OFF_UserDefaultSetString)(nullptr, key, str.get());
 }
 
-// ── Cocos 节点通用工具 ────────────────────────────────────────────────
-//
 // 节点首字段是 vtable 指针，所有方法都按**字节偏移**取槽（不要写成 vtable[下标]）。
 
 // 取虚表槽；obj 为空或 vtable 为空时返回 nullptr。
@@ -160,7 +150,8 @@ inline auto gameVcall(void *obj, size_t byteOffset, Args... args) -> decltype(au
 }
 
 // 用游戏 ABI 构造 std::string 并调用 fn(&str)，结束后释放。
-template <typename Fn> inline bool withGameStr(const char *text, Fn fn)
+template <typename Fn>
+inline bool withGameStr(const char *text, Fn fn)
 {
     GameStr str;
     gameStrInit(&str, text);
@@ -175,10 +166,10 @@ inline void *childByName(void *root, const char *name)
     if (!root)
         return nullptr;
     void *found = nullptr;
-    withGameStr(name, [&](void *str) {
+    withGameStr(name, [&](void *str)
+                {
         found = gameVcall<void *(*)(void *, void *)>(root, OFF_VT_GET_CHILD, str);
-        return true;
-    });
+        return true; });
     return found;
 }
 
