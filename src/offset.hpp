@@ -101,11 +101,11 @@
 struct SongConstant
 {
     const char *songId;
-    int16_t pst;
-    int16_t prs;
-    int16_t ftr;
-    int16_t byd;
-    int16_t etr;
+    uint8_t pst; // 0 ~ 255
+    uint8_t prs;
+    uint8_t ftr;
+    uint8_t byd;
+    uint8_t etr;
 };
 
 inline constexpr SongConstant kSongConstants[] = {

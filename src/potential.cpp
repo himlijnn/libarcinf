@@ -101,7 +101,7 @@ namespace
 }
 
 // 取第 difficulty 档的定数 ×10；越界返回 0。
-static int16_t constantX10Of(const SongConstant &e, int difficulty)
+static uint8_t constantX10Of(const SongConstant &e, int difficulty)
 {
     switch (difficulty)
     {
@@ -119,7 +119,7 @@ static int16_t constantX10Of(const SongConstant &e, int difficulty)
 }
 
 // 查定数（×10）；0 = 未收录 / 该难度不存在（游戏里定数不会为 0，可当哨兵）
-static int16_t lookupConstantX10(const char *songId, int difficulty)
+static int lookupConstantX10(const char *songId, int difficulty)
 {
     if (!songId || difficulty < 0 || difficulty >= kMaxDifficulty)
         return 0;
@@ -146,7 +146,7 @@ static int16_t lookupConstantX10(const char *songId, int difficulty)
 }
 
 // 返回内部单位（1 ptt = 3e6）；全程整数、无截断
-static int64_t playPttUnit(int16_t constantX10, int score, int clearType)
+static int64_t playPttUnit(int constantX10, int score, int clearType)
 {
     int64_t value = static_cast<int64_t>(constantX10) * kConstToUnit;
 
@@ -281,7 +281,7 @@ static int64_t computePttUnit(void)
         // 不能按 score 过滤：score 可以为 0 且通关
         //  未通关的 0 分记录会算出 0，由下面的 value <= 0 自然淘汰
         // songId 未收录 / 该难度不存在 → 无视这条成绩
-        const int16_t constantX10 =
+        const int constantX10 =
             lookupConstantX10(g_songIdPool + g_plays[i].songIdOffset, g_plays[i].difficulty);
         if (constantX10 <= 0)
             continue;
