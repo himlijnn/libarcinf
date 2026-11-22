@@ -101,11 +101,7 @@
 struct SongConstant
 {
     const char *songId;
-    uint8_t pst; // 0 ~ 255
-    uint8_t prs;
-    uint8_t ftr;
-    uint8_t byd;
-    uint8_t etr;
+    uint8_t pst, prs, ftr, byd, etr; // 0 ~ 255
 };
 
 inline constexpr SongConstant kSongConstants[] = {
@@ -714,8 +710,7 @@ struct CharInfo
 {
     int8_t id; // -128 ~ 127
     bool has_uncap;
-    const char *skill_id;
-    const char *skill_id_uncap; // skill_id_uncap 留空则读取 skill_id
+    const char *skill_id, *skill_id_uncap; // skill_id_uncap 留空则读取 skill_id
 };
 
 inline constexpr CharInfo g_char_info[] = {
