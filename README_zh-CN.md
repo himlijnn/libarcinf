@@ -31,6 +31,6 @@
 项目使用 [Ninja](https://github.com/ninja-build/ninja) 和 NDK r30 构建。
 
 > [!NOTE]
-> 本地构建前请编辑 CMakePresets.json 和 CMakeLists.txt。
+> 本地构建前请检查 offset.hpp 是否匹配您的游戏版本。然后编辑 CMakePresets.json 和 CMakeLists.txt。
 
 

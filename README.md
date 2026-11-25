@@ -33,5 +33,5 @@ The repository only keeps offsets for the latest game version.
 The project is built with [Ninja](https://github.com/ninja-build/ninja) and NDK r30.
 
 > [!NOTE]
-> Before building locally, please edit CMakePresets.json and CMakeLists.txt.
+> Before building locally, please check if offset.hpp matches your game version. Then edit CMakePresets.json and CMakeLists.txt.
 
